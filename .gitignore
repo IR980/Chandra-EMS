@@ -1,0 +1,28 @@
+
+# Dependencies
+node_modules/
+client/node_modules/
+server/node_modules/
+
+# Environment files
+.env
+.env.*
+!.env.example
+client/.env
+server/.env
+
+# Build output
+dist/
+client/dist/
+server/dist/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Uploads
+server/uploads/
+
+# System files
+.DS_Store
+Thumbs.db
