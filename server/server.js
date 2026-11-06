@@ -8,6 +8,8 @@ import rateLimit from 'express-rate-limit';
 import dns from 'dns';
 import connectDB from './config/db.js';
 import mongoose from 'mongoose';
+import authRoutes from "./routes/auth.routes.js";
+import errorHandler from "./middleware/error.middleware.js";
 dns.setServers(['8.8.8.8', '8.8.4.4']);
 dotenv.config();
 
@@ -61,6 +63,12 @@ app.get('/api/health', (req, res) => {
     server: 'Running',
   });
 });
+
+// Authentication API
+app.use("/api/auth", authRoutes);
+
+// Central error handler — must be registered after all routes.
+app.use(errorHandler);
 
 // Start server after database connection
 const PORT = process.env.PORT || 5000;
