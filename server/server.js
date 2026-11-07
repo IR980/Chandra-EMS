@@ -10,6 +10,11 @@ import connectDB from './config/db.js';
 import mongoose from 'mongoose';
 import authRoutes from "./routes/auth.routes.js";
 import errorHandler from "./middleware/error.middleware.js";
+import domainRoutes from "./routes/domain.routes.js";
+import departmentRoutes from "./routes/department.routes.js";
+import employeeRoutes from "./routes/employee.routes.js";
+import attendanceRoutes from "./routes/attendance.routes.js";
+import roleRoutes from "./routes/role.routes.js";
 dns.setServers(['8.8.8.8', '8.8.4.4']);
 dotenv.config();
 
@@ -66,6 +71,21 @@ app.get('/api/health', (req, res) => {
 
 // Authentication API
 app.use("/api/auth", authRoutes);
+
+// Domain API
+app.use("/api/domains", domainRoutes);
+
+// Department API
+app.use("/api/departments", departmentRoutes);
+
+// Employee API
+app.use("/api/employees", employeeRoutes);
+
+// Role API
+app.use("/api/roles", roleRoutes);
+
+// Attendance API
+app.use("/api/attendance", attendanceRoutes);
 
 // Central error handler — must be registered after all routes.
 app.use(errorHandler);

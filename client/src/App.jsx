@@ -1,26 +1,72 @@
-import { Building2, Users, ShieldCheck } from "lucide-react";
+import { useEffect } from "react";
+import { Navigate, Route, Routes } from "react-router-dom";
 
+import { useDispatch, useSelector } from "react-redux";
+import { refreshSession } from "./features/auth/authSlice";
+
+import LoginPage from "./pages/LoginPage";
+import DashboardPage from "./pages/DashboardPage";
+import ProtectedRoute from "./components/ProtectedRoute";
+import EmployeeDirectoryPage from "./pages/employees/EmployeeDirectoryPage";
+import AddEmployeePage from "./pages/employees/AddEmployeePage";
+import EmployeeProfilePage from "./pages/employees/EmployeeProfilePage";
+
+// organization amd department management
+import OrganizationDashboard from "./features/organization/OrganizationDashboard";
+import DomainManagement from "./features/organization/DomainManagement";
+import DepartmentManagement from "./features/organization/DepartmentManagement";
+import OrganizationChart from "./features/organization/OrganizationChart";
 function App() {
-  return (
-    <div className="min-h-screen bg-slate-500 flex items-center justify-center p-6">
-      <div className="bg-white shadow-xl rounded-2xl p-10 max-w-lg w-full text-center">
-        <div className="w-16 h-16 bg-brand-600 rounded-2xl mx-auto mb-5 flex items-center justify-center text-white text-2xl font-bold">
-          CE
-        </div>
+  const dispatch = useDispatch();
 
-        <h1 className="text-3xl font-bold text-brand-800">
-          Chandra Enterprises
-        </h1>
+  const { initialized, isAuthenticated } = useSelector((state) => state.auth);
 
-        <p className="text-slate-500 mt-3">
-          Employee Management System
-        </p>
+  useEffect(() => {
+    dispatch(refreshSession());
+  }, [dispatch]);
 
-        <div className="mt-6 bg-brand-50 text-brand-700 p-4 rounded-xl">
-          Tailwind CSS v4 configured successfully!
-        </div>
+  if (!initialized) {
+    return (
+      <div className="flex min-h-screen items-center justify-center">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-green-700 border-t-transparent" />
       </div>
-    </div>
+    );
+  }
+
+  return (
+    <Routes>
+      <Route
+        path="/"
+        element={
+          <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />
+        }
+      />
+
+      <Route
+        path="/login"
+        element={
+          isAuthenticated ? <Navigate to="/dashboard" replace /> : <LoginPage />
+        }
+      />
+
+      <Route element={<ProtectedRoute />}>
+        <Route path="/employees" element={<EmployeeDirectoryPage />} />
+        <Route path="/dashboard" element={<DashboardPage />} />
+        <Route path="/employees/new" element={<AddEmployeePage />} />
+        <Route path="/employees/:id" element={<EmployeeProfilePage />} />
+        <Route path="/organization" element={<OrganizationDashboard />} />
+        <Route path="/organization/domains" element={<DomainManagement />} />
+        <Route path="/organization/departments" element={<DepartmentManagement />} />
+        <Route path="/organization/chart" element={<OrganizationChart />} />
+      </Route>
+
+      <Route
+        path="*"
+        element={
+          <Navigate to={isAuthenticated ? "/dashboard" : "/login"} replace />
+        }
+      />
+    </Routes>
   );
 }
 
