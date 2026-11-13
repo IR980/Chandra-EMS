@@ -7,6 +7,7 @@ import {
   getAttendance,
   createManualAttendance,
   updateAttendance,
+  deleteAttendance,
   approveAttendance,
 } from "../controllers/attendance.controller.js";
 
@@ -43,5 +44,7 @@ router.patch(
 );
 
 router.patch("/:id", requirePermission("attendance.manage"), updateAttendance);
+
+router.delete("/:id", requirePermission("attendance.manage"), deleteAttendance);
 
 export default router;

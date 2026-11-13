@@ -87,6 +87,52 @@ const attendanceSchema = new mongoose.Schema(
       type: Boolean,
       default: false,
     },
+
+    // Soft deletion keeps attendance history available for audit/recovery.
+    deletedAt: {
+      type: Date,
+      default: null,
+      index: true,
+    },
+
+    deletedBy: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: "User",
+      default: null,
+    },
+
+    deletionReason: {
+      type: String,
+      default: "",
+      maxlength: 500,
+      trim: true,
+    },
+
+    corrections: [
+      {
+        changedBy: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "User",
+          required: true,
+        },
+        changedAt: { type: Date, default: Date.now },
+        reason: { type: String, default: "", maxlength: 500 },
+        before: {
+          status: String,
+          checkInAt: Date,
+          checkOutAt: Date,
+          workedMinutes: Number,
+          remarks: String,
+        },
+        after: {
+          status: String,
+          checkInAt: Date,
+          checkOutAt: Date,
+          workedMinutes: Number,
+          remarks: String,
+        },
+      },
+    ],
   },
   {
     timestamps: true,

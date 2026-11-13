@@ -211,6 +211,30 @@ const sendError = (res, status, message) => {
   });
 };
 
+// Interpret administrator-entered times as India Standard Time (UTC+05:30).
+const parseCompanyTime = (attendanceDate, time) => {
+  if (time === null || time === undefined || time === "") return null;
+  if (!/^([01]\d|2[0-3]):[0-5]\d$/.test(time)) return undefined;
+  const parsed = new Date(`${attendanceDate}T${time}:00+05:30`);
+  return Number.isNaN(parsed.getTime()) ? undefined : parsed;
+};
+
+const getWorkedMinutes = (checkInAt, checkOutAt) => {
+  if (!checkInAt || !checkOutAt) return 0;
+  return Math.max(
+    0,
+    Math.round((checkOutAt.getTime() - checkInAt.getTime()) / 60000),
+  );
+};
+
+const getAttendanceSnapshot = (attendance) => ({
+  status: attendance.status,
+  checkInAt: attendance.checkInAt,
+  checkOutAt: attendance.checkOutAt,
+  workedMinutes: attendance.workedMinutes,
+  remarks: attendance.remarks,
+});
+
 // POST /api/attendance/check-in
 export const checkIn = async (req, res, next) => {
   try {
@@ -375,7 +399,7 @@ export const getAttendance = async (req, res, next) => {
     const scope = await getAttendanceScope(req.user);
 
     const mongoFilter = {
-      $and: [filters, scope],
+      $and: [{ deletedAt: null }, filters, scope],
     };
 
     const [records, total] = await Promise.all([
@@ -422,6 +446,8 @@ export const createManualAttendance = async (req, res, next) => {
       attendanceDate,
       status,
       remarks = "",
+      checkInTime = "",
+      checkOutTime = "",
     } = req.body;
 
     if (!mongoose.isValidObjectId(employeeId)) {
@@ -446,6 +472,41 @@ export const createManualAttendance = async (req, res, next) => {
 
     if (typeof remarks !== "string" || remarks.length > MAX_REMARKS_LENGTH) {
       return sendError(res, 400, "Remarks must be 500 characters or fewer.");
+    }
+
+    const checkInAt = parseCompanyTime(attendanceDate, checkInTime);
+    const checkOutAt = parseCompanyTime(attendanceDate, checkOutTime);
+
+    if (checkInAt === undefined || checkOutAt === undefined) {
+      return sendError(
+        res,
+        400,
+        "Enter valid check-in and check-out times in HH:mm format.",
+      );
+    }
+    if (checkOutAt && !checkInAt) {
+      return sendError(
+        res,
+        400,
+        "Check-in time is required when check-out time is provided.",
+      );
+    }
+    if (checkInAt && checkOutAt && checkOutAt <= checkInAt) {
+      return sendError(
+        res,
+        400,
+        "Check-out time must be later than check-in time.",
+      );
+    }
+    if (
+      ["absent", "holiday", "week_off"].includes(status) &&
+      (checkInAt || checkOutAt)
+    ) {
+      return sendError(
+        res,
+        400,
+        "Check-in/check-out times are not allowed for this attendance status.",
+      );
     }
 
     const employee = await Employee.findOne({
@@ -496,6 +557,9 @@ export const createManualAttendance = async (req, res, next) => {
       department: employee.department,
       attendanceDate,
       status,
+      checkInAt,
+      checkOutAt,
+      workedMinutes: getWorkedMinutes(checkInAt, checkOutAt),
       remarks: remarks.trim(),
       source: "admin",
       markedBy: req.user._id,
@@ -526,10 +590,17 @@ export const createManualAttendance = async (req, res, next) => {
 export const updateAttendance = async (req, res, next) => {
   try {
     const { id } = req.params;
-
-    if (!mongoose.isValidObjectId(id)) {
+    if (!mongoose.isValidObjectId(id))
       return sendError(res, 400, "Invalid attendance ID.");
-    }
+
+    const attendance = await Attendance.findById(id);
+    if (!attendance) return sendError(res, 404, "Attendance record not found.");
+
+    const hasAccess = await hasAccessToAttendance(req.user, attendance);
+    if (!hasAccess)
+      return sendError(res, 403, "You cannot update this attendance record.");
+    if (attendance.deletedAt)
+      return sendError(res, 404, "Attendance record not found.");
 
     const allowedStatuses = [
       "present",
@@ -538,62 +609,165 @@ export const updateAttendance = async (req, res, next) => {
       "holiday",
       "week_off",
     ];
-
-    const allowedFields = ["status", "remarks"];
-    const updates = {};
-
-    for (const field of allowedFields) {
-      if (Object.hasOwn(req.body, field)) {
-        updates[field] = req.body[field];
-      }
-    }
-
-    if (!Object.keys(updates).length) {
+    const fields = [
+      "status",
+      "remarks",
+      "checkInTime",
+      "checkOutTime",
+      "reason",
+    ];
+    if (!fields.some((field) => Object.hasOwn(req.body, field))) {
       return sendError(res, 400, "No valid attendance fields provided.");
     }
 
-    if (updates.status && !allowedStatuses.includes(updates.status)) {
+    const nextStatus = Object.hasOwn(req.body, "status")
+      ? req.body.status
+      : attendance.status;
+    if (!allowedStatuses.includes(nextStatus))
       return sendError(res, 400, "Invalid attendance status.");
-    }
 
     if (
-      updates.remarks !== undefined &&
-      (typeof updates.remarks !== "string" ||
-        updates.remarks.length > MAX_REMARKS_LENGTH)
+      Object.hasOwn(req.body, "remarks") &&
+      (typeof req.body.remarks !== "string" ||
+        req.body.remarks.length > MAX_REMARKS_LENGTH)
     ) {
-      return sendError(res, 400, "Invalid remarks.");
+      return sendError(res, 400, "Remarks must be 500 characters or fewer.");
     }
 
-    const attendance = await Attendance.findById(id);
+    const reason = req.body.reason ?? "";
+    if (attendance.isApproved && (!reason || !String(reason).trim())) {
+      return sendError(
+        res,
+        400,
+        "A correction reason is required for approved attendance.",
+      );
+    }
+    if (typeof reason !== "string" || reason.length > MAX_REMARKS_LENGTH) {
+      return sendError(
+        res,
+        400,
+        "Correction reason must be 500 characters or fewer.",
+      );
+    }
 
+    const hasTimeInput =
+      Object.hasOwn(req.body, "checkInTime") ||
+      Object.hasOwn(req.body, "checkOutTime");
+    const nextCheckIn = Object.hasOwn(req.body, "checkInTime")
+      ? parseCompanyTime(attendance.attendanceDate, req.body.checkInTime)
+      : attendance.checkInAt;
+    const nextCheckOut = Object.hasOwn(req.body, "checkOutTime")
+      ? parseCompanyTime(attendance.attendanceDate, req.body.checkOutTime)
+      : attendance.checkOutAt;
+
+    if (nextCheckIn === undefined || nextCheckOut === undefined) {
+      return sendError(
+        res,
+        400,
+        "Enter valid check-in and check-out times in HH:mm format.",
+      );
+    }
+    if (nextCheckOut && !nextCheckIn) {
+      return sendError(
+        res,
+        400,
+        "Check-in time is required when check-out time is provided.",
+      );
+    }
+    if (nextCheckIn && nextCheckOut && nextCheckOut <= nextCheckIn) {
+      return sendError(
+        res,
+        400,
+        "Check-out time must be later than check-in time.",
+      );
+    }
+    if (
+      ["absent", "holiday", "week_off"].includes(nextStatus) &&
+      (nextCheckIn || nextCheckOut)
+    ) {
+      return sendError(
+        res,
+        400,
+        "Clear check-in and check-out times before using this status.",
+      );
+    }
+
+    const snapshot = () => ({
+      status: attendance.status,
+      checkInAt: attendance.checkInAt,
+      checkOutAt: attendance.checkOutAt,
+      workedMinutes: attendance.workedMinutes,
+      remarks: attendance.remarks,
+    });
+    const before = snapshot();
+
+    attendance.status = nextStatus;
+    if (Object.hasOwn(req.body, "remarks"))
+      attendance.remarks = req.body.remarks.trim();
+    if (hasTimeInput) {
+      attendance.checkInAt = nextCheckIn;
+      attendance.checkOutAt = nextCheckOut;
+      attendance.workedMinutes = getWorkedMinutes(nextCheckIn, nextCheckOut);
+    }
+
+    attendance.corrections.push({
+      changedBy: req.user._id,
+      changedAt: new Date(),
+      reason: reason.trim(),
+      before,
+      after: snapshot(),
+    });
+    attendance.source = "admin";
+    attendance.markedBy = req.user._id;
+
+    await attendance.save();
+    return res.json({
+      success: true,
+      message: "Attendance corrected successfully.",
+      data: { attendance },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// DELETE /api/attendance/:id
+// Soft-delete only: the record remains in MongoDB for audit/recovery.
+export const deleteAttendance = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const reason =
+      typeof req.body?.reason === "string" ? req.body.reason.trim() : "";
+
+    if (!mongoose.isValidObjectId(id)) {
+      return sendError(res, 400, "Invalid attendance ID.");
+    }
+    if (!reason || reason.length > MAX_REMARKS_LENGTH) {
+      return sendError(
+        res,
+        400,
+        "A deletion reason (maximum 500 characters) is required.",
+      );
+    }
+
+    const attendance = await Attendance.findOne({ _id: id, deletedAt: null });
     if (!attendance) {
       return sendError(res, 404, "Attendance record not found.");
     }
 
     const hasAccess = await hasAccessToAttendance(req.user, attendance);
-
     if (!hasAccess) {
-      return sendError(res, 403, "You cannot update this attendance record.");
+      return sendError(res, 403, "You cannot delete this attendance record.");
     }
 
-    if (attendance.isApproved) {
-      return sendError(res, 409, "Approved attendance cannot be edited.");
-    }
-
-    if (updates.status !== undefined) attendance.status = updates.status;
-    if (updates.remarks !== undefined) {
-      attendance.remarks = updates.remarks.trim();
-    }
-
-    attendance.source = "admin";
-    attendance.markedBy = req.user._id;
-
+    attendance.deletedAt = new Date();
+    attendance.deletedBy = req.user._id;
+    attendance.deletionReason = reason;
     await attendance.save();
 
     return res.json({
       success: true,
-      message: "Attendance updated successfully.",
-      data: { attendance },
+      message: "Attendance record moved to deleted records successfully.",
     });
   } catch (error) {
     next(error);

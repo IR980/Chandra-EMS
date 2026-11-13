@@ -15,6 +15,9 @@ import departmentRoutes from "./routes/department.routes.js";
 import employeeRoutes from "./routes/employee.routes.js";
 import attendanceRoutes from "./routes/attendance.routes.js";
 import roleRoutes from "./routes/role.routes.js";
+import leaveRoutes from "./routes/leave.routes.js";
+import payrollRoutes from "./routes/payroll.routes.js";
+import payrollProcessingRoutes from "./routes/payrollProcessing.routes.js";
 dns.setServers(['8.8.8.8', '8.8.4.4']);
 dotenv.config();
 
@@ -87,6 +90,12 @@ app.use("/api/roles", roleRoutes);
 // Attendance API
 app.use("/api/attendance", attendanceRoutes);
 
+// Leave API
+app.use("/api/leaves", leaveRoutes);
+
+// Payroll API
+app.use("/api/payroll", payrollRoutes);
+app.use("/api/payroll", payrollProcessingRoutes);
 // Central error handler — must be registered after all routes.
 app.use(errorHandler);
 
