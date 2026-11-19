@@ -3,7 +3,6 @@ import { Link } from "react-router-dom";
 import { useSelector } from "react-redux";
 import {
   Activity,
-  ArrowDownRight,
   ArrowRight,
   ArrowUpRight,
   Building2,
@@ -19,7 +18,6 @@ import {
   Users,
   UserRound,
   UserCog,
-  Workflow,
   Zap,
 } from "lucide-react";
 import api from "../../services/api";
@@ -213,7 +211,9 @@ function OrganizationDashboard() {
   }, [canViewDomains, canViewDepartments, canViewEmployees]);
 
   useEffect(() => {
-    loadOrganization();
+    Promise.resolve().then(() => {
+      void loadOrganization();
+    });
   }, [loadOrganization]);
 
   const activeDomains = useMemo(() => domains.filter(isActive), [domains]);

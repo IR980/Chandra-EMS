@@ -1,12 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  Check,
-  ClipboardList,
-  RefreshCw,
-  Search,
-  X,
-  Clock,
-} from "lucide-react";
+import { Check, ClipboardList, RefreshCw, Search, X } from "lucide-react";
 import { useSelector } from "react-redux";
 import api from "../../services/api";
 
@@ -210,11 +203,15 @@ function AttendanceManagementPage() {
   }, [filters, page]);
 
   useEffect(() => {
-    loadOptions();
+    Promise.resolve().then(() => {
+      void loadOptions();
+    });
   }, [loadOptions]);
 
   useEffect(() => {
-    loadRecords();
+    Promise.resolve().then(() => {
+      void loadRecords();
+    });
   }, [loadRecords]);
 
   const departmentOptions = useMemo(

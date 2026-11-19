@@ -144,7 +144,9 @@ export default function DepartmentManagement() {
   }, [search, domainFilter, statusFilter]);
 
   useEffect(() => {
-    loadData();
+    Promise.resolve().then(() => {
+      void loadData();
+    });
   }, [loadData]);
 
   const availableParents = useMemo(

@@ -33,15 +33,32 @@ export const authenticate = async (req, res, next) => {
       });
     }
 
+    if ((payload.ver ?? 0) !== (user.tokenVersion ?? 0)) {
+      return res.status(401).json({
+        success: false,
+        message: "Your session has been invalidated. Please log in again.",
+      });
+    }
+
     req.user = user;
     req.auth = payload;
 
-    next();
+    return next();
   } catch (error) {
-    return res.status(401).json({
-      success: false,
-      message: "Invalid or expired access token.",
-    });
+    // Invalid, expired, or not-yet-valid JWT.
+    if (
+      error.name === "JsonWebTokenError" ||
+      error.name === "TokenExpiredError" ||
+      error.name === "NotBeforeError"
+    ) {
+      return res.status(401).json({
+        success: false,
+        message: "Invalid or expired access token.",
+      });
+    }
+
+    // Database and unexpected server errors go to error middleware.
+    return next(error);
   }
 };
 

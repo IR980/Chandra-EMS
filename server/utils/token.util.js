@@ -36,6 +36,7 @@ export const generateAccessToken = (user) => {
       sub: user._id.toString(),
       role: user.role.toString(),
       type: "access",
+      ver: user.tokenVersion || 0, // Include token version for invalidation
     },
     accessSecret,
     {
@@ -59,6 +60,7 @@ export const generateRefreshToken = (user) => {
       sub: user._id.toString(),
       jti: tokenId,
       type: "refresh",
+      ver: user.tokenVersion || 0, // Include token version for invalidation
     },
     refreshSecret,
     {

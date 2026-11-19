@@ -874,8 +874,6 @@
 //   }
 // };
 
-
-
 import mongoose from "mongoose";
 
 import Payroll from "../models/payroll.model.js";
@@ -884,7 +882,7 @@ import Domain from "../models/domain.model.js";
 import Department from "../models/department.model.js";
 
 import {
-    recalculateDraftPayroll,
+  recalculateDraftPayroll,
   generateMonthlyPayroll,
 } from "../services/payrollCalculation.service.js";
 
@@ -1070,9 +1068,7 @@ export const generatePayroll = async (req, res, next) => {
     }
 
     const employees = await Employee.find(employeeFilter)
-      .select(
-        "_id employeeCode fullName domain department employmentStatus",
-      )
+      .select("_id employeeCode fullName domain department employmentStatus")
       .lean();
 
     const result = await generateMonthlyPayroll({
@@ -1129,11 +1125,7 @@ export const getPayrolls = async (req, res, next) => {
     for (const field of ["employee", "domain", "department"]) {
       if (req.query[field]) {
         if (!mongoose.isValidObjectId(req.query[field])) {
-          return sendError(
-            res,
-            400,
-            `Invalid ${field} ID.`,
-          );
+          return sendError(res, 400, `Invalid ${field} ID.`);
         }
 
         filters[field] = req.query[field];
@@ -1141,12 +1133,7 @@ export const getPayrolls = async (req, res, next) => {
     }
 
     if (req.query.status) {
-      const statuses = [
-        "draft",
-        "verified",
-        "approved",
-        "paid",
-      ];
+      const statuses = ["draft", "verified", "approved", "paid"];
 
       if (!statuses.includes(req.query.status)) {
         return sendError(res, 400, "Invalid payroll status.");
@@ -1155,32 +1142,20 @@ export const getPayrolls = async (req, res, next) => {
       filters.status = req.query.status;
     }
 
-    const page = Math.max(
-      1,
-      Number.parseInt(req.query.page, 10) || 1,
-    );
+    const page = Math.max(1, Number.parseInt(req.query.page, 10) || 1);
 
     const limit = Math.min(
       100,
-      Math.max(
-        1,
-        Number.parseInt(req.query.limit, 10) || 20,
-      ),
+      Math.max(1, Number.parseInt(req.query.limit, 10) || 20),
     );
 
     const filter = {
-      $and: [
-        scope,
-        filters,
-      ],
+      $and: [scope, filters],
     };
 
     const [payrolls, total] = await Promise.all([
       Payroll.find(filter)
-        .populate(
-          "employee",
-          "employeeCode fullName designation",
-        )
+        .populate("employee", "employeeCode fullName designation")
         .populate("domain", "name code")
         .populate("department", "name code")
         .populate("salaryStructure")
@@ -1236,10 +1211,7 @@ export const getPayrollById = async (req, res, next) => {
         scope,
       ],
     })
-      .populate(
-        "employee",
-        "employeeCode fullName designation employmentType",
-      )
+      .populate("employee", "employeeCode fullName designation employmentType")
       .populate("domain", "name code")
       .populate("department", "name code")
       .populate("salaryStructure")
@@ -1285,16 +1257,12 @@ const getPayrollForAction = async (req, res) => {
   });
 
   if (!payroll) {
-    sendError(
-      res,
-      404,
-      "Payroll record not found in your authorized scope.",
-    );
+    sendError(res, 404, "Payroll record not found in your authorized scope.");
 
     return null;
   }
 
-  return payroll;
+  return { payroll, scope };
 };
 
 // ----------------------------------------------------
@@ -1304,36 +1272,33 @@ const getPayrollForAction = async (req, res) => {
 
 export const verifyPayroll = async (req, res, next) => {
   try {
-    const payroll = await getPayrollForAction(req, res);
+    const actionData = await getPayrollForAction(req, res);
 
-    if (!payroll) return;
+    if (!actionData) return;
+
+    const { payroll, scope } = actionData;
 
     if (payroll.status !== "draft") {
-      return sendError(
-        res,
-        409,
-        "Only draft payroll can be verified.",
-      );
+      return sendError(res, 409, "Only draft payroll can be verified.");
     }
 
     const remarks =
-      typeof req.body.remarks === "string"
-        ? req.body.remarks.trim()
-        : "";
+      typeof req.body.remarks === "string" ? req.body.remarks.trim() : "";
 
     if (remarks.length > 1000) {
-      return sendError(
-        res,
-        400,
-        "Remarks cannot exceed 1000 characters.",
-      );
+      return sendError(res, 400, "Remarks cannot exceed 1000 characters.");
     }
 
     // Conditional update protects against concurrent verification.
     const updatedPayroll = await Payroll.findOneAndUpdate(
       {
-        _id: payroll._id,
-        status: "draft",
+        $and: [
+          {
+            _id: payroll._id,
+            status: "draft",
+          },
+          scope,
+        ],
       },
       {
         $set: {
@@ -1388,35 +1353,32 @@ export const verifyPayroll = async (req, res, next) => {
 
 export const approvePayroll = async (req, res, next) => {
   try {
-    const payroll = await getPayrollForAction(req, res);
+    const actionData = await getPayrollForAction(req, res);
 
-    if (!payroll) return;
+    if (!actionData) return;
+
+    const { payroll, scope } = actionData;
 
     if (payroll.status !== "verified") {
-      return sendError(
-        res,
-        409,
-        "Only verified payroll can be approved.",
-      );
+      return sendError(res, 409, "Only verified payroll can be approved.");
     }
 
     const remarks =
-      typeof req.body.remarks === "string"
-        ? req.body.remarks.trim()
-        : "";
+      typeof req.body.remarks === "string" ? req.body.remarks.trim() : "";
 
     if (remarks.length > 1000) {
-      return sendError(
-        res,
-        400,
-        "Remarks cannot exceed 1000 characters.",
-      );
+      return sendError(res, 400, "Remarks cannot exceed 1000 characters.");
     }
 
     const updatedPayroll = await Payroll.findOneAndUpdate(
       {
-        _id: payroll._id,
-        status: "verified",
+        $and: [
+          {
+            _id: payroll._id,
+            status: "verified",
+          },
+          scope,
+        ],
       },
       {
         $set: {
@@ -1471,9 +1433,11 @@ export const approvePayroll = async (req, res, next) => {
 
 export const markPayrollPaid = async (req, res, next) => {
   try {
-    const payroll = await getPayrollForAction(req, res);
+    const actionData = await getPayrollForAction(req, res);
 
-    if (!payroll) return;
+    if (!actionData) return;
+
+    const { payroll, scope } = actionData;
 
     if (payroll.status !== "approved") {
       return sendError(
@@ -1483,13 +1447,7 @@ export const markPayrollPaid = async (req, res, next) => {
       );
     }
 
-    const allowedMethods = [
-      "bank_transfer",
-      "upi",
-      "cash",
-      "cheque",
-      "other",
-    ];
+    const allowedMethods = ["bank_transfer", "upi", "cash", "cheque", "other"];
 
     const paymentMethod = req.body.paymentMethod;
 
@@ -1499,11 +1457,7 @@ export const markPayrollPaid = async (req, res, next) => {
         : "";
 
     if (!allowedMethods.includes(paymentMethod)) {
-      return sendError(
-        res,
-        400,
-        "Select a valid payment method.",
-      );
+      return sendError(res, 400, "Select a valid payment method.");
     }
 
     if (paymentReference.length > 150) {
@@ -1516,8 +1470,13 @@ export const markPayrollPaid = async (req, res, next) => {
 
     const updatedPayroll = await Payroll.findOneAndUpdate(
       {
-        _id: payroll._id,
-        status: "approved",
+        $and: [
+          {
+            _id: payroll._id,
+            status: "approved",
+          },
+          scope,
+        ],
       },
       {
         $set: {
@@ -1568,7 +1527,6 @@ export const markPayrollPaid = async (req, res, next) => {
   }
 };
 
-
 export const recalculatePayroll = async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -1578,10 +1536,7 @@ export const recalculatePayroll = async (req, res, next) => {
     const scope = await getPayrollScope(req.user);
 
     const payroll = await Payroll.findOne({
-      $and: [
-        { _id: req.params.id },
-        scope,
-      ],
+      $and: [{ _id: req.params.id }, scope],
     }).select("_id status");
 
     if (!payroll) {
@@ -1589,16 +1544,13 @@ export const recalculatePayroll = async (req, res, next) => {
     }
 
     if (payroll.status !== "draft") {
-      return sendError(
-        res,
-        409,
-        "Only draft payroll can be recalculated.",
-      );
+      return sendError(res, 409, "Only draft payroll can be recalculated.");
     }
 
     const updatedPayroll = await recalculateDraftPayroll({
       payrollId: payroll._id,
       actorId: req.user._id,
+      scopeFilter: scope,
     });
 
     return res.json({

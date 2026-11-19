@@ -9,7 +9,7 @@ import {
   markPayrollPaid,
   recalculatePayroll,
 } from "../controllers/payroll.controller.js";
-
+import { getPayrollAutomationStatus } from "../controllers/payrollAutomation.controller.js";
 import {
   authenticate,
   requirePermission,
@@ -27,6 +27,13 @@ router.get("/", requirePermission("payroll.view"), getPayrolls);
 
 // Get a specific payroll record
 router.get("/:id", requirePermission("payroll.view"), getPayrollById);
+
+// Get payroll automation status
+router.get(
+  "/automation/status",
+  requirePermission("payroll.view"),
+  getPayrollAutomationStatus,
+);
 
 // Verify payroll
 router.patch("/:id/verify", requirePermission("payroll.verify"), verifyPayroll);

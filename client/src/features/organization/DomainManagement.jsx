@@ -91,7 +91,9 @@ export default function DomainManagement() {
   }, [search, status]);
 
   useEffect(() => {
-    loadDomains();
+    Promise.resolve().then(() => {
+      void loadDomains();
+    });
   }, [loadDomains]);
 
   // Load all active employees so the domain-head dropdown

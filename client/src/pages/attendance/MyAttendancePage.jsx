@@ -127,7 +127,9 @@ function MyAttendancePage() {
   }, [month, page]);
 
   useEffect(() => {
-    loadAttendance();
+    Promise.resolve().then(() => {
+      void loadAttendance();
+    });
   }, [loadAttendance]);
 
   const todayRecord = useMemo(

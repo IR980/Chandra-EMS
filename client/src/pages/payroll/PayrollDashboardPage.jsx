@@ -15,7 +15,6 @@ import {
   Wallet,
   XCircle,
   Users,
-  Search,
 } from "lucide-react";
 import api from "../../services/api";
 
@@ -61,6 +60,20 @@ const getErrorMessage = (error) =>
   error.message ||
   "Something went wrong. Please try again.";
 
+const formatDateTime = (value) => {
+  if (!value) return "Not available";
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) return "Not available";
+
+  return new Intl.DateTimeFormat("en-IN", {
+    dateStyle: "medium",
+    timeStyle: "short",
+    timeZone: "Asia/Kolkata",
+  }).format(date);
+};
+
 const getEmployeeName = (employee) =>
   employee?.fullName ||
   [employee?.firstName, employee?.lastName].filter(Boolean).join(" ") ||
@@ -75,11 +88,14 @@ function StatCard({ title, value, subtitle, icon: Icon, color }) {
     <div className="rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
       <div className="flex items-center justify-between">
         <p className="text-sm font-medium text-slate-500">{title}</p>
+
         <div className={`rounded-xl p-3 ${color}`}>
           <Icon size={21} />
         </div>
       </div>
+
       <h3 className="mt-4 text-2xl font-bold text-slate-900">{value}</h3>
+
       <p className="mt-1 text-xs text-slate-500">{subtitle}</p>
     </div>
   );
@@ -108,13 +124,15 @@ export default function PayrollDashboardPage() {
   const navigate = useNavigate();
   const { user } = useSelector((state) => state.auth);
 
+  // Payroll permissions
   const permissions = user?.role?.permissions || [];
   const hasAllPermissions = permissions.includes("*");
 
   const canViewPayroll =
     hasAllPermissions || permissions.includes("payroll.view");
-  const canManagePayroll =
-    hasAllPermissions || permissions.includes("payroll.manage");
+
+  const canGeneratePayroll =
+    hasAllPermissions || permissions.includes("payroll.generate");
 
   const [month, setMonth] = useState(todayIndia.month);
   const [year, setYear] = useState(todayIndia.year);
@@ -125,11 +143,17 @@ export default function PayrollDashboardPage() {
 
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
+
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
+  const [automation, setAutomation] = useState(null);
+  const [automationLoading, setAutomationLoading] = useState(true);
+  const [automationError, setAutomationError] = useState("");
+
   const completedMonth = isMonthCompleted(month, year);
 
+  // Load payroll records
   const loadPayrolls = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -142,9 +166,12 @@ export default function PayrollDashboardPage() {
         limit: 100,
       };
 
-      if (status) params.status = status;
+      if (status) {
+        params.status = status;
+      }
 
       const response = await api.get("/payroll", { params });
+
       const data = response.data?.data || {};
       const records = data.payrolls || data.records || [];
 
@@ -159,10 +186,31 @@ export default function PayrollDashboardPage() {
     }
   }, [month, year, status]);
 
-  useEffect(() => {
-    loadPayrolls();
-  }, [loadPayrolls]);
+  // Load payroll automation status
+  const loadAutomationStatus = useCallback(async () => {
+    setAutomationLoading(true);
+    setAutomationError("");
 
+    try {
+      const response = await api.get("/payroll/automation/status");
+
+      setAutomation(response.data?.data || null);
+    } catch (err) {
+      setAutomationError(getErrorMessage(err));
+      setAutomation(null);
+    } finally {
+      setAutomationLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      void loadPayrolls();
+      void loadAutomationStatus();
+    });
+  }, [loadPayrolls, loadAutomationStatus]);
+
+  // Payroll summary
   const summary = useMemo(
     () =>
       payrolls.reduce(
@@ -192,8 +240,9 @@ export default function PayrollDashboardPage() {
     [payrolls],
   );
 
+  // Generate monthly payroll
   const handleGenerate = async () => {
-    if (!canManagePayroll) {
+    if (!canGeneratePayroll) {
       setError("You do not have permission to generate payroll.");
       return;
     }
@@ -222,8 +271,10 @@ export default function PayrollDashboardPage() {
       });
 
       const result = response.data?.data || {};
-      const generated = result.generated || [];
-      const skipped = result.skipped || [];
+
+      const generated = Array.isArray(result.generated) ? result.generated : [];
+
+      const skipped = Array.isArray(result.skipped) ? result.skipped : [];
 
       setSuccess(
         `Payroll generation completed. ${generated.length} employee records generated and ${skipped.length} skipped.`,
@@ -250,6 +301,7 @@ export default function PayrollDashboardPage() {
     }
   };
 
+  // Export payroll CSV
   const exportCSV = () => {
     if (!payrolls.length) {
       setError("There are no payroll records to export.");
@@ -312,17 +364,21 @@ export default function PayrollDashboardPage() {
     todayIndia.year + 1,
   ];
 
-  if (!canViewPayroll && !canManagePayroll) {
+  // Access protection
+  if (!canViewPayroll) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
         <div className="max-w-md rounded-2xl border bg-white p-8 text-center shadow-sm">
           <XCircle className="mx-auto text-red-500" size={42} />
+
           <h2 className="mt-4 text-xl font-bold text-slate-900">
             Access Denied
           </h2>
+
           <p className="mt-2 text-sm text-slate-500">
             You do not have permission to access payroll management.
           </p>
+
           <button
             onClick={() => navigate("/dashboard")}
             className="mt-5 rounded-lg bg-green-800 px-5 py-2.5 text-sm font-semibold text-white"
@@ -336,6 +392,7 @@ export default function PayrollDashboardPage() {
 
   return (
     <main className="min-h-screen bg-[#f3f7f4]">
+      {/* Header */}
       <header className="sticky top-0 z-20 border-b border-slate-100 bg-white px-4 py-4 shadow-sm sm:px-8">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-3">
           <div className="flex items-center gap-3">
@@ -353,6 +410,7 @@ export default function PayrollDashboardPage() {
 
             <div>
               <h1 className="font-bold text-slate-900">Payroll Management</h1>
+
               <p className="text-xs text-slate-500">Chandra Enterprises Agro</p>
             </div>
           </div>
@@ -363,23 +421,26 @@ export default function PayrollDashboardPage() {
             className="flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
             <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
+
             <span className="hidden sm:inline">Refresh</span>
           </button>
         </div>
       </header>
 
       <section className="mx-auto max-w-7xl px-4 py-8 sm:px-8">
+        {/* Page heading */}
         <div className="mb-7 flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
           <div>
             <h2 className="text-2xl font-bold text-slate-900">
               Payroll Dashboard
             </h2>
+
             <p className="mt-1 text-sm text-slate-500">
               Manage monthly salaries, review calculations and track payments.
             </p>
           </div>
 
-          {canManagePayroll && (
+          {canGeneratePayroll && (
             <button
               onClick={handleGenerate}
               disabled={generating || loading || !completedMonth}
@@ -395,6 +456,7 @@ export default function PayrollDashboardPage() {
               ) : (
                 <Plus size={18} />
               )}
+
               {generating ? "Generating..." : "Generate Monthly Payroll"}
             </button>
           )}
@@ -403,10 +465,12 @@ export default function PayrollDashboardPage() {
         {/* Automatic payroll schedule */}
         <div className="mb-6 flex items-start gap-3 rounded-2xl border border-blue-100 bg-blue-50 p-4">
           <CalendarDays className="mt-0.5 shrink-0 text-blue-700" size={21} />
+
           <div>
             <p className="text-sm font-semibold text-blue-900">
               Automatic Monthly Payroll Schedule
             </p>
+
             <p className="mt-1 text-sm text-blue-800">
               The previous month's payroll is scheduled for automatic generation
               on the 1st of every month at 2:00 AM (Asia/Kolkata). Automatically
@@ -424,6 +488,7 @@ export default function PayrollDashboardPage() {
           </div>
         )}
 
+        {/* Feedback */}
         {error && (
           <div className="mb-5 flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
             <XCircle size={18} className="mt-0.5 shrink-0" />
@@ -438,12 +503,106 @@ export default function PayrollDashboardPage() {
           </div>
         )}
 
+        {/* Payroll Automation Status */}
+        <section className="mb-6 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+            <div className="flex items-start gap-3">
+              <div className="rounded-xl bg-green-50 p-3 text-green-800">
+                <Clock size={22} />
+              </div>
+
+              <div>
+                <h3 className="font-bold text-slate-900">
+                  Automatic Payroll Generation
+                </h3>
+
+                <p className="mt-1 text-sm text-slate-500">
+                  Previous month's payroll · 1st of every month · 2:00 AM IST
+                </p>
+
+                <div className="mt-3">
+                  {automationLoading ? (
+                    <span className="text-sm text-slate-500">
+                      Loading automation status...
+                    </span>
+                  ) : automationError ? (
+                    <span className="text-sm text-red-600">
+                      {automationError}
+                    </span>
+                  ) : (
+                    <span
+                      className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${
+                        automation?.enabled
+                          ? "bg-green-100 text-green-800"
+                          : "bg-amber-100 text-amber-800"
+                      }`}
+                    >
+                      {automation?.enabled
+                        ? "Automation Enabled"
+                        : "Automation Disabled"}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={loadAutomationStatus}
+              disabled={automationLoading}
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-200 px-4 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            >
+              <RefreshCw
+                size={16}
+                className={automationLoading ? "animate-spin" : ""}
+              />
+              Refresh Status
+            </button>
+          </div>
+
+          {!automationLoading && !automationError && automation && (
+            <div className="mt-5 grid gap-4 border-t border-slate-100 pt-4 sm:grid-cols-2">
+              <div>
+                <p className="text-xs font-medium text-slate-500">
+                  Next Scheduled Run
+                </p>
+
+                <p className="mt-1 text-sm font-semibold text-slate-900">
+                  {automation.enabled
+                    ? formatDateTime(automation.nextRunAt)
+                    : "Not scheduled while disabled"}
+                </p>
+              </div>
+
+              <div>
+                <p className="text-xs font-medium text-slate-500">
+                  Last Automation Run
+                </p>
+
+                <p className="mt-1 text-sm font-semibold capitalize text-slate-900">
+                  {automation.latestRun
+                    ? `${automation.latestRun.status} · ${formatDateTime(
+                        automation.latestRun.lastAttemptAt,
+                      )}`
+                    : "No previous run"}
+                </p>
+              </div>
+            </div>
+          )}
+
+          <p className="mt-4 text-xs text-slate-500">
+            Automatic runs create Draft payroll records only. Verification,
+            approval and payment remain separate HR actions.
+          </p>
+        </section>
+
         {/* Filters */}
         <div className="mb-6 flex flex-wrap items-end gap-4 rounded-2xl border border-slate-100 bg-white p-5 shadow-sm">
           <div>
             <label className="mb-2 block text-xs font-semibold text-slate-500">
               Payroll Month
             </label>
+
             <select
               value={month}
               onChange={(event) => setMonth(Number(event.target.value))}
@@ -461,6 +620,7 @@ export default function PayrollDashboardPage() {
             <label className="mb-2 block text-xs font-semibold text-slate-500">
               Payroll Year
             </label>
+
             <select
               value={year}
               onChange={(event) => setYear(Number(event.target.value))}
@@ -478,6 +638,7 @@ export default function PayrollDashboardPage() {
             <label className="mb-2 block text-xs font-semibold text-slate-500">
               Payroll Status
             </label>
+
             <select
               value={status}
               onChange={(event) => setStatus(event.target.value)}
@@ -497,7 +658,7 @@ export default function PayrollDashboardPage() {
           </div>
         </div>
 
-        {/* Summary cards */}
+        {/* Financial summary */}
         <div className="mb-7 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
           <StatCard
             title="Gross Payroll"
@@ -541,6 +702,7 @@ export default function PayrollDashboardPage() {
             icon={Clock}
             color="bg-amber-50 text-amber-700"
           />
+
           <StatCard
             title="Verified"
             value={summary.verified}
@@ -548,6 +710,7 @@ export default function PayrollDashboardPage() {
             icon={CheckCircle2}
             color="bg-blue-50 text-blue-700"
           />
+
           <StatCard
             title="Approved"
             value={summary.approved}
@@ -555,6 +718,7 @@ export default function PayrollDashboardPage() {
             icon={CheckCircle2}
             color="bg-green-50 text-green-700"
           />
+
           <StatCard
             title="Paid"
             value={summary.paid}
@@ -564,11 +728,12 @@ export default function PayrollDashboardPage() {
           />
         </div>
 
-        {/* Payroll table */}
+        {/* Payroll records */}
         <section className="overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-sm">
           <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-100 p-5">
             <div>
               <h3 className="font-bold text-slate-900">Payroll Records</h3>
+
               <p className="mt-1 text-xs text-slate-500">
                 Employee-wise monthly salary details
               </p>
@@ -592,15 +757,17 @@ export default function PayrollDashboardPage() {
           ) : payrolls.length === 0 ? (
             <div className="px-5 py-16 text-center">
               <FileText className="mx-auto text-slate-300" size={42} />
+
               <h4 className="mt-4 font-semibold text-slate-800">
                 No payroll records found
               </h4>
+
               <p className="mt-2 text-sm text-slate-500">
                 No payroll records were found for {MONTHS[month - 1]} {year}
                 {status ? ` with status ${status}` : ""}.
               </p>
 
-              {canManagePayroll && completedMonth && (
+              {canGeneratePayroll && completedMonth && (
                 <button
                   onClick={handleGenerate}
                   disabled={generating}
@@ -632,6 +799,7 @@ export default function PayrollDashboardPage() {
                         <p className="font-semibold text-slate-900">
                           {getEmployeeName(payroll.employee)}
                         </p>
+
                         <p className="mt-1 text-xs text-slate-500">
                           {payroll.employee?.employeeCode || "—"}
                         </p>

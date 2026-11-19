@@ -72,6 +72,11 @@ const userSchema = new mongoose.Schema(
       type: Date,
       default: null,
     },
+    tokenVersion: {
+      type: Number,
+      default: 0,
+      min: 0,
+    },
 
     failedLoginAttempts: {
       type: Number,
@@ -120,7 +125,7 @@ userSchema.virtual("isLocked").get(function () {
 });
 
 // Useful indexes
-userSchema.index({ email: 1 }, { unique: true });
+// userSchema.index({ email: 1 }, { unique: true });
 userSchema.index({ role: 1, accountStatus: 1 });
 userSchema.index({ employee: 1 }, { sparse: true });
 

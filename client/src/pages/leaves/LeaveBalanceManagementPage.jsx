@@ -161,11 +161,15 @@ function LeaveBalanceManagementPage() {
   ]);
 
   useEffect(() => {
-    loadOptions();
+    Promise.resolve().then(() => {
+      void loadOptions();
+    });
   }, [loadOptions]);
 
   useEffect(() => {
-    loadBalances();
+    Promise.resolve().then(() => {
+      void loadBalances();
+    });
   }, [loadBalances]);
 
   const availableDepartments = useMemo(

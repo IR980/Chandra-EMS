@@ -137,7 +137,9 @@ function EmployeeDirectoryPage() {
   }, [search, domain, department, status]);
 
   useEffect(() => {
-    loadFilters();
+    Promise.resolve().then(() => {
+      void loadFilters();
+    });
   }, [loadFilters]);
 
   // Debounce search so the API is not called on every keystroke.
@@ -150,7 +152,9 @@ function EmployeeDirectoryPage() {
   }, [searchInput]);
 
   useEffect(() => {
-    loadEmployees();
+    Promise.resolve().then(() => {
+      void loadEmployees();
+    });
   }, [loadEmployees]);
 
   const filteredDepartments = useMemo(() => {

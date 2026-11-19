@@ -6,6 +6,7 @@ import {
   refresh,
   logout,
   me,
+  changePassword,
 } from "../controllers/auth.controller.js";
 
 import {
@@ -35,4 +36,6 @@ router.post("/logout", logout);
 // Current authenticated user's profile.
 router.get("/me", authenticate, me);
 
+// Authenticated user changes their own password.
+router.patch("/change-password", authenticate, changePassword);
 export default router;

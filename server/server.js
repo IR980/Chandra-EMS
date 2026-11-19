@@ -1,13 +1,12 @@
-
-import express from 'express';
-import cors from 'cors';
-import dotenv from 'dotenv';
-import helmet from 'helmet';
-import cookieParser from 'cookie-parser';
-import rateLimit from 'express-rate-limit';
-import dns from 'dns';
-import connectDB from './config/db.js';
-import mongoose from 'mongoose';
+import express from "express";
+import cors from "cors";
+import dotenv from "dotenv";
+import helmet from "helmet";
+import cookieParser from "cookie-parser";
+import rateLimit from "express-rate-limit";
+import dns from "dns";
+import connectDB from "./config/db.js";
+import mongoose from "mongoose";
 import authRoutes from "./routes/auth.routes.js";
 import errorHandler from "./middleware/error.middleware.js";
 import domainRoutes from "./routes/domain.routes.js";
@@ -17,8 +16,11 @@ import attendanceRoutes from "./routes/attendance.routes.js";
 import roleRoutes from "./routes/role.routes.js";
 import leaveRoutes from "./routes/leave.routes.js";
 import payrollRoutes from "./routes/payroll.routes.js";
-import payrollProcessingRoutes from "./routes/payrollProcessing.routes.js";
-dns.setServers(['8.8.8.8', '8.8.4.4']);
+// import payrollProcessingRoutes from "./routes/payrollProcessing.routes.js";
+import { startPayrollScheduler } from "./services/payrollScheduler.service.js";
+import reportsRoutes from "./routes/reports.routes.js";
+import { validateRequestOrigin } from "./middleware/csrf.middleware.js";
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
 dotenv.config();
 
 const app = express();
@@ -27,15 +29,26 @@ const app = express();
 app.use(helmet());
 
 // CORS configuration
+// CORS configuration
+const allowedOrigins = (process.env.CLIENT_URL || "http://localhost:5173")
+  .split(",")
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
 app.use(
   cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:5173',
+    origin: allowedOrigins,
     credentials: true,
-  })
+    methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allowedHeaders: ["Content-Type", "Authorization"],
+  }),
 );
 
+// CSRF protection
+app.use(validateRequestOrigin);
+
 // Request body parsing
-app.use(express.json({ limit: '1mb' }));
+app.use(express.json({ limit: "1mb" }));
 app.use(express.urlencoded({ extended: true }));
 
 // Cookie parser
@@ -43,32 +56,47 @@ app.use(cookieParser());
 
 // API rate limiter
 app.use(
-  '/api',
+  "/api",
   rateLimit({
     windowMs: 15 * 60 * 1000,
     limit: 200,
-    standardHeaders: 'draft-7',
+    standardHeaders: "draft-7",
     legacyHeaders: false,
-  })
+  }),
 );
 
+// Strict rate limit for login attempts
+const loginRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  limit: 10,
+  standardHeaders: "draft-7",
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: {
+    success: false,
+    message: "Too many login attempts. Please try again after 15 minutes.",
+  },
+});
+
+// Apply the stricter limit only to login
+app.use("/api/auth/login", loginRateLimiter);
 // Root route
-app.get('/', (req, res) => {
+app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
-    message: 'Chandra Enterprises EMS Backend',
+    message: "Chandra Enterprises EMS Backend",
   });
 });
 
 // Health check route
-app.get('/api/health', (req, res) => {
+app.get("/api/health", (req, res) => {
   const isConnected = mongoose.connection.readyState === 1;
 
   res.status(isConnected ? 200 : 503).json({
     success: isConnected,
-    message: 'EMS API is running',
-    database: isConnected ? 'Connected' : 'Disconnected',
-    server: 'Running',
+    message: "EMS API is running",
+    database: isConnected ? "Connected" : "Disconnected",
+    server: "Running",
   });
 });
 
@@ -95,7 +123,10 @@ app.use("/api/leaves", leaveRoutes);
 
 // Payroll API
 app.use("/api/payroll", payrollRoutes);
-app.use("/api/payroll", payrollProcessingRoutes);
+// app.use("/api/payroll", payrollProcessingRoutes);
+
+// Reports API
+app.use("/api/reports", reportsRoutes);
 // Central error handler — must be registered after all routes.
 app.use(errorHandler);
 
@@ -105,12 +136,12 @@ const PORT = process.env.PORT || 5000;
 const startServer = async () => {
   try {
     await connectDB();
-
+    await startPayrollScheduler();
     app.listen(PORT, () => {
       console.log(`EMS Server running on port ${PORT}`);
     });
   } catch (error) {
-    console.error('Unable to start server:', error.message);
+    console.error("Unable to start server:", error.message);
     process.exit(1);
   }
 };

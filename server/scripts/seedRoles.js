@@ -1,9 +1,9 @@
 import dotenv from "dotenv";
 import mongoose from "mongoose";
-import dns from 'node:dns';
+import dns from "node:dns";
 
 // Configure DNS resolvers before MongoDB connection
-dns.setServers(['8.8.8.8', '8.8.4.4']);
+dns.setServers(["8.8.8.8", "8.8.4.4"]);
 import connectDB from "../config/db.js";
 import Role from "../models/role.model.js";
 import { ALL_PERMISSIONS, PERMISSIONS } from "../config/permissions.js";
@@ -106,6 +106,10 @@ const roleDefinitions = [
       P.DOCUMENTS_MANAGE,
       P.NOTIFICATIONS_VIEW,
       P.NOTIFICATIONS_MANAGE,
+      P.PAYROLL_VIEW,
+      P.PAYROLL_MANAGE,
+      P.PAYROLL_GENERATE,
+      P.PAYROLL_RECALCULATE,
     ],
   },
   {
@@ -132,6 +136,10 @@ const roleDefinitions = [
       P.DOCUMENTS_VIEW,
       P.DOCUMENTS_MANAGE,
       P.NOTIFICATIONS_VIEW,
+      P.PAYROLL_VIEW,
+      P.PAYROLL_MANAGE,
+      P.PAYROLL_GENERATE,
+      P.PAYROLL_RECALCULATE,
     ],
   },
   {
@@ -156,6 +164,7 @@ const roleDefinitions = [
       P.REPORTS_VIEW,
       P.DOCUMENTS_VIEW,
       P.NOTIFICATIONS_VIEW,
+      P.PAYROLL_VIEW,
     ],
   },
   {
@@ -206,6 +215,7 @@ const roleDefinitions = [
       P.PAYROLL_VIEW,
       P.PAYROLL_MANAGE,
       P.PAYROLL_VERIFY,
+      P.PAYROLL_PAY,
       P.REPORTS_VIEW,
       P.REPORTS_EXPORT,
       P.EMPLOYEES_VIEW,

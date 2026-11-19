@@ -8,41 +8,87 @@ import {
 } from "../controllers/salaryStructure.controller.js";
 
 import {
+  generatePayroll,
+  getPayrolls,
+  getPayrollById,
+  verifyPayroll,
+  approvePayroll,
+  markPayrollPaid,
+  recalculatePayroll,
+} from "../controllers/payroll.controller.js";
+
+import { getPayrollAutomationStatus } from "../controllers/payrollAutomation.controller.js";
+
+import {
   authenticate,
   requirePermission,
 } from "../middleware/auth.middleware.js";
 
+import { PERMISSIONS as P } from "../config/permissions.js";
+
 const router = express.Router();
 
-// All payroll routes require authentication.
 router.use(authenticate);
 
-// Get salary structures with filters and pagination.
+// Salary structure management
 router.get(
   "/structures",
-  requirePermission("payroll.view"),
+  requirePermission(P.PAYROLL_VIEW),
   getSalaryStructures,
 );
 
-// Get an employee's current salary and salary history.
 router.get(
   "/employees/:employeeId/salary",
-  requirePermission("payroll.view"),
+  requirePermission(P.PAYROLL_VIEW),
   getEmployeeSalaryHistory,
 );
 
-// Create a salary structure.
 router.post(
   "/structures",
-  requirePermission("payroll.manage"),
+  requirePermission(P.PAYROLL_MANAGE),
   createSalaryStructure,
 );
 
-// Update salary structure by creating a new salary version.
 router.patch(
   "/structures/:id",
-  requirePermission("payroll.manage"),
+  requirePermission(P.PAYROLL_MANAGE),
   updateSalaryStructure,
 );
+
+// Payroll generation and listing
+router.post(
+  "/generate",
+  requirePermission(P.PAYROLL_GENERATE),
+  generatePayroll,
+);
+
+router.get("/", requirePermission(P.PAYROLL_VIEW), getPayrolls);
+
+// Payroll automation status
+router.get(
+  "/automation/status",
+  requirePermission(P.PAYROLL_VIEW),
+  getPayrollAutomationStatus,
+);
+
+// Payroll workflow actions
+router.patch(
+  "/:id/recalculate",
+  requirePermission(P.PAYROLL_RECALCULATE),
+  recalculatePayroll,
+);
+
+router.patch("/:id/verify", requirePermission(P.PAYROLL_VERIFY), verifyPayroll);
+
+router.patch(
+  "/:id/approve",
+  requirePermission(P.PAYROLL_APPROVE),
+  approvePayroll,
+);
+
+router.patch("/:id/pay", requirePermission(P.PAYROLL_PAY), markPayrollPaid);
+
+// Keep the dynamic ID route last
+router.get("/:id", requirePermission(P.PAYROLL_VIEW), getPayrollById);
 
 export default router;

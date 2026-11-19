@@ -108,7 +108,9 @@ function LeaveManagementPage() {
   );
 
   useEffect(() => {
-    loadLeaves(1);
+    Promise.resolve().then(() => {
+      void loadLeaves(1);
+    });
   }, [loadLeaves]);
 
   const filteredLeaves = useMemo(() => {

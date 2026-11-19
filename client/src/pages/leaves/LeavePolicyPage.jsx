@@ -136,7 +136,9 @@ function LeavePolicyPage() {
   }, [loadDomains]);
 
   useEffect(() => {
-    loadPolicies();
+    Promise.resolve().then(() => {
+      void loadPolicies();
+    });
   }, [loadPolicies]);
 
   const availableDomains = useMemo(

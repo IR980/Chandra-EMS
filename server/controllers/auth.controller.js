@@ -4,6 +4,7 @@ import {
   refreshUserSession,
   logoutUser,
   getAuthenticatedUser,
+  changeUserPassword,
 } from "../services/auth.service.js";
 
 const isProduction = process.env.NODE_ENV === "production";
@@ -125,6 +126,25 @@ export const me = async (req, res, next) => {
     return res.status(200).json({
       success: true,
       data: { user },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const changePassword = async (req, res, next) => {
+  try {
+    const result = await changeUserPassword(
+      req.user._id,
+      req.body.currentPassword,
+      req.body.newPassword,
+    );
+
+    clearAuthCookies(res);
+
+    return res.status(200).json({
+      success: true,
+      message: result.message,
     });
   } catch (error) {
     next(error);

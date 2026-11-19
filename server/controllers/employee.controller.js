@@ -30,6 +30,104 @@ const allowedFields = [
   "notes",
 ];
 
+// ----------------------------------------------------
+// EMPLOYEE ACCESS SCOPE
+// ----------------------------------------------------
+
+const getEmployeeAccessScope = async (user) => {
+  const scope = user?.role?.scope || "self";
+
+  // Global roles can access all employee records.
+  if (scope === "global") {
+    return {};
+  }
+
+  // Find the employee linked to the logged-in user.
+  const ownEmployee = await Employee.findOne({
+    user: user._id,
+  }).select("_id");
+
+  // Users without an employee profile cannot access employee records.
+  if (!ownEmployee) {
+    return {
+      _id: new mongoose.Types.ObjectId(),
+    };
+  }
+
+  // Self-scoped users can access only their own record.
+  if (scope === "self") {
+    return {
+      _id: ownEmployee._id,
+    };
+  }
+
+  // Find officially managed domains and departments.
+  const [headedDomains, managedDepartments] = await Promise.all([
+    Domain.find({
+      head: ownEmployee._id,
+      status: "active",
+    }).select("_id"),
+
+    Department.find({
+      manager: ownEmployee._id,
+      status: "active",
+    }).select("_id"),
+  ]);
+
+  // Collect all direct and indirect reporting employees.
+  const descendantIds = [];
+  const visitedIds = new Set([ownEmployee._id.toString()]);
+  let managerIds = [ownEmployee._id];
+
+  while (managerIds.length > 0) {
+    const reports = await Employee.find({
+      reportingManager: { $in: managerIds },
+    }).select("_id");
+
+    const nextManagerIds = [];
+
+    for (const report of reports) {
+      const reportId = report._id.toString();
+
+      if (!visitedIds.has(reportId)) {
+        visitedIds.add(reportId);
+        descendantIds.push(report._id);
+        nextManagerIds.push(report._id);
+      }
+    }
+
+    managerIds = nextManagerIds;
+  }
+
+  const accessConditions = [{ _id: ownEmployee._id }];
+
+  if (descendantIds.length > 0) {
+    accessConditions.push({
+      _id: { $in: descendantIds },
+    });
+  }
+
+  if (headedDomains.length > 0) {
+    accessConditions.push({
+      domain: {
+        $in: headedDomains.map((item) => item._id),
+      },
+    });
+  }
+
+  if (managedDepartments.length > 0) {
+    accessConditions.push({
+      department: {
+        $in: managedDepartments.map((item) => item._id),
+      },
+    });
+  }
+
+  return {
+    $or: accessConditions,
+  };
+};
+
 const validateOrganization = async (domainId, departmentId) => {
   if (
     !mongoose.isValidObjectId(domainId) ||
@@ -213,6 +311,8 @@ export const createEmployee = async (req, res, next) => {
 };
 
 // LIST EMPLOYEES WITH SEARCH AND FILTERS
+
+// LIST EMPLOYEES WITH SEARCH, FILTERS AND ACCESS SCOPE
 export const getEmployees = async (req, res, next) => {
   try {
     const {
@@ -226,36 +326,81 @@ export const getEmployees = async (req, res, next) => {
       limit = 20,
     } = req.query;
 
-    const filter = {};
+    // Apply the logged-in user's employee access scope.
+    const accessScope = await getEmployeeAccessScope(req.user);
 
-    if (domain) filter.domain = domain;
-    if (department) filter.department = department;
+    const conditions = [accessScope];
 
-    if (employmentStatus !== "all") {
-      filter.employmentStatus = employmentStatus;
+    // Apply requested filters.
+    if (domain) {
+      if (!mongoose.isValidObjectId(domain)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid domain ID.",
+        });
+      }
+
+      conditions.push({ domain });
     }
 
-    if (employmentType) filter.employmentType = employmentType;
-    if (designation) {
-      filter.designation = { $regex: designation, $options: "i" };
+    if (department) {
+      if (!mongoose.isValidObjectId(department)) {
+        return res.status(400).json({
+          success: false,
+          message: "Invalid department ID.",
+        });
+      }
+
+      conditions.push({ department });
+    }
+
+    if (employmentStatus !== "all" && employmentStatus) {
+      conditions.push({ employmentStatus });
+    }
+
+    if (employmentType) {
+      conditions.push({ employmentType });
+    }
+
+    // Escape special regex characters in user input.
+    const escapeRegex = (value) => value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+    if (designation?.trim()) {
+      conditions.push({
+        designation: {
+          $regex: escapeRegex(designation.trim()),
+          $options: "i",
+        },
+      });
     }
 
     if (search?.trim()) {
-      const searchTerm = search.trim();
+      const searchTerm = escapeRegex(search.trim());
 
-      filter.$or = [
-        { employeeCode: { $regex: searchTerm, $options: "i" } },
-        { fullName: { $regex: searchTerm, $options: "i" } },
-        { firstName: { $regex: searchTerm, $options: "i" } },
-        { lastName: { $regex: searchTerm, $options: "i" } },
-        { phone: { $regex: searchTerm, $options: "i" } },
-        { workEmail: { $regex: searchTerm, $options: "i" } },
-        { designation: { $regex: searchTerm, $options: "i" } },
-      ];
+      conditions.push({
+        $or: [
+          { employeeCode: { $regex: searchTerm, $options: "i" } },
+          { fullName: { $regex: searchTerm, $options: "i" } },
+          { firstName: { $regex: searchTerm, $options: "i" } },
+          { lastName: { $regex: searchTerm, $options: "i" } },
+          { phone: { $regex: searchTerm, $options: "i" } },
+          { workEmail: { $regex: searchTerm, $options: "i" } },
+          { designation: { $regex: searchTerm, $options: "i" } },
+        ],
+      });
     }
 
-    const pageNumber = Math.max(1, Number(page) || 1);
-    const pageSize = Math.min(100, Math.max(1, Number(limit) || 20));
+    const filter = { $and: conditions };
+
+    const pageNumber = Math.max(
+      1,
+      Math.min(100000, Number.parseInt(page, 10) || 1),
+    );
+
+    const pageSize = Math.min(
+      100,
+      Math.max(1, Number.parseInt(limit, 10) || 20),
+    );
 
     const [employees, total] = await Promise.all([
       Employee.find(filter)
@@ -265,6 +410,7 @@ export const getEmployees = async (req, res, next) => {
         .sort({ createdAt: -1 })
         .skip((pageNumber - 1) * pageSize)
         .limit(pageSize),
+
       Employee.countDocuments(filter),
     ]);
 
@@ -286,6 +432,8 @@ export const getEmployees = async (req, res, next) => {
 };
 
 // GET EMPLOYEE BY ID
+
+// GET EMPLOYEE BY ID — ENFORCE ACCESS SCOPE
 export const getEmployeeById = async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -295,12 +443,17 @@ export const getEmployeeById = async (req, res, next) => {
       });
     }
 
-    const employee = await Employee.findById(req.params.id)
+    const accessScope = await getEmployeeAccessScope(req.user);
+
+    const employee = await Employee.findOne({
+      $and: [{ _id: req.params.id }, accessScope],
+    })
       .populate("domain", "name code")
       .populate("department", "name code")
       .populate("reportingManager", "employeeCode fullName designation")
       .populate("user", "fullName email accountStatus");
 
+    // Return the same response for missing and inaccessible records.
     if (!employee) {
       return res.status(404).json({
         success: false,
@@ -318,6 +471,8 @@ export const getEmployeeById = async (req, res, next) => {
 };
 
 // UPDATE EMPLOYEE
+
+// UPDATE EMPLOYEE — ENFORCE ACCESS SCOPE
 export const updateEmployee = async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -327,7 +482,11 @@ export const updateEmployee = async (req, res, next) => {
       });
     }
 
-    const employee = await Employee.findById(req.params.id);
+    const accessScope = await getEmployeeAccessScope(req.user);
+
+    const employee = await Employee.findOne({
+      $and: [{ _id: req.params.id }, accessScope],
+    });
 
     if (!employee) {
       return res.status(404).json({
@@ -361,6 +520,25 @@ export const updateEmployee = async (req, res, next) => {
       return res.status(400).json({
         success: false,
         message: organizationError,
+      });
+    }
+
+    // Prevent assigned-scope users from transferring employees
+    // outside their own access scope.
+    const targetOrganizationScope = await Employee.findOne({
+      $and: [
+        {
+          domain: nextDomain,
+          department: nextDepartment,
+        },
+        accessScope,
+      ],
+    }).select("_id");
+
+    if (!targetOrganizationScope) {
+      return res.status(403).json({
+        success: false,
+        message: "You cannot move an employee outside your assigned scope.",
       });
     }
 
@@ -409,6 +587,8 @@ export const updateEmployee = async (req, res, next) => {
 };
 
 // DEACTIVATE EMPLOYEE
+
+// DEACTIVATE EMPLOYEE — ENFORCE ACCESS SCOPE
 export const deactivateEmployee = async (req, res, next) => {
   try {
     if (!mongoose.isValidObjectId(req.params.id)) {
@@ -418,12 +598,23 @@ export const deactivateEmployee = async (req, res, next) => {
       });
     }
 
-    const employee = await Employee.findById(req.params.id);
+    const accessScope = await getEmployeeAccessScope(req.user);
+
+    const employee = await Employee.findOne({
+      $and: [{ _id: req.params.id }, accessScope],
+    });
 
     if (!employee) {
       return res.status(404).json({
         success: false,
         message: "Employee not found.",
+      });
+    }
+
+    if (employee.employmentStatus === "inactive") {
+      return res.status(400).json({
+        success: false,
+        message: "Employee is already inactive.",
       });
     }
 
@@ -464,7 +655,11 @@ export const createEmployeeAccount = async (req, res, next) => {
       });
     }
 
-    const employee = await Employee.findById(id);
+    const accessScope = await getEmployeeAccessScope(req.user);
+
+    const employee = await Employee.findOne({
+      $and: [{ _id: id }, accessScope],
+    });
 
     if (!employee) {
       return res.status(404).json({
@@ -591,7 +786,6 @@ export const createEmployeeAccount = async (req, res, next) => {
   }
 };
 
-
 // GET DIRECT REPORTS OF AN EMPLOYEE
 export const getEmployeeReports = async (req, res, next) => {
   try {
@@ -605,7 +799,7 @@ export const getEmployeeReports = async (req, res, next) => {
     }
 
     const manager = await Employee.findById(id).select(
-      "_id fullName employeeCode"
+      "_id fullName employeeCode",
     );
 
     if (!manager) {

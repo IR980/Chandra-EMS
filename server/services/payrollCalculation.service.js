@@ -32,13 +32,23 @@ const getIndiaDateKey = (date = new Date()) => {
 };
 
 const getDateKey = (value) => {
+  if (typeof value === "string" && /^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
     throw new Error("Invalid date found in payroll data.");
   }
 
-  return getIndiaDateKey(date);
+  // Leave startDate and endDate are calendar dates stored as MongoDB Dates.
+  // Use UTC components to preserve their stored calendar date.
+  return [
+    date.getUTCFullYear(),
+    String(date.getUTCMonth() + 1).padStart(2, "0"),
+    String(date.getUTCDate()).padStart(2, "0"),
+  ].join("-");
 };
 
 const validateCompletedMonth = (year, month) => {
@@ -53,9 +63,11 @@ const validateCompletedMonth = (year, month) => {
     throw new Error("Provide a valid payroll month and year.");
   }
 
-  const { end } = getMonthRange(year, month);
+  const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
+  const selectedMonthEndKey = dateKey(year, month, lastDay);
+  const todayKey = getIndiaDateKey();
 
-  if (getIndiaDateKey(end) >= getIndiaDateKey()) {
+  if (selectedMonthEndKey >= todayKey) {
     throw new Error(
       "Payroll can only be generated after the selected month has ended in India.",
     );
@@ -435,12 +447,29 @@ export const generateEmployeePayroll = async ({
  * Recalculate an existing draft payroll.
  * The existing record ID and original creation information are retained.
  */
-export const recalculateDraftPayroll = async ({ payrollId, actorId }) => {
-  if (!payrollId || !actorId) {
-    throw new Error("Payroll ID and acting user are required.");
+export const recalculateDraftPayroll = async ({
+  payrollId,
+  actorId,
+  scopeFilter,
+}) => {
+  if (
+    !payrollId ||
+    !actorId ||
+    !scopeFilter ||
+    typeof scopeFilter !== "object" ||
+    Array.isArray(scopeFilter)
+  ) {
+    throw new Error(
+      "Payroll ID, acting user and authorization scope are required.",
+    );
   }
 
-  const payroll = await Payroll.findById(payrollId);
+  const payroll = await Payroll.findOne({
+  $and: [
+    { _id: payrollId },
+    scopeFilter,
+  ],
+});
 
   if (!payroll) {
     throw new Error("Payroll record not found.");
@@ -475,8 +504,13 @@ export const recalculateDraftPayroll = async ({ payrollId, actorId }) => {
   // by another user while the calculation was running.
   const updated = await Payroll.findOneAndUpdate(
     {
-      _id: payroll._id,
-      status: "draft",
+      $and: [
+        {
+          _id: payroll._id,
+          status: "draft",
+        },
+        scopeFilter,
+      ],
     },
     {
       $set: {

@@ -7,7 +7,6 @@ import {
   CalendarDays,
   CheckCircle2,
   Clock,
-  FileText,
   LoaderCircle,
   RefreshCw,
   ShieldCheck,
@@ -30,7 +29,10 @@ const formatCurrency = (amount) =>
 const formatDate = (date) => {
   if (!date) return "—";
 
-  return new Date(date).toLocaleDateString("en-IN", {
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return "—";
+
+  return parsed.toLocaleDateString("en-IN", {
     day: "2-digit",
     month: "short",
     year: "numeric",
@@ -40,7 +42,10 @@ const formatDate = (date) => {
 const formatDateTime = (date) => {
   if (!date) return "—";
 
-  return new Date(date).toLocaleString("en-IN", {
+  const parsed = new Date(date);
+  if (Number.isNaN(parsed.getTime())) return "—";
+
+  return parsed.toLocaleString("en-IN", {
     dateStyle: "medium",
     timeStyle: "short",
   });
@@ -156,13 +161,18 @@ export default function PayrollDetailsPage() {
   const { id } = useParams();
   const { user } = useSelector((state) => state.auth);
 
+  // Role-based permissions
   const permissions = user?.role?.permissions || [];
   const hasAllPermissions = permissions.includes("*");
 
-  const canManage = hasAllPermissions || permissions.includes("payroll.manage");
-  const canVerify = hasAllPermissions || permissions.includes("payroll.verify");
-  const canApprove =
-    hasAllPermissions || permissions.includes("payroll.approve");
+  const hasPermission = (permission) =>
+    hasAllPermissions || permissions.includes(permission);
+
+  const canView = hasPermission("payroll.view");
+  const canRecalculate = hasPermission("payroll.recalculate");
+  const canVerify = hasPermission("payroll.verify");
+  const canApprove = hasPermission("payroll.approve");
+  const canPay = hasPermission("payroll.pay");
 
   const [payroll, setPayroll] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -188,7 +198,9 @@ export default function PayrollDetailsPage() {
   }, [id]);
 
   useEffect(() => {
-    loadPayroll();
+    Promise.resolve().then(() => {
+      void loadPayroll();
+    });
   }, [loadPayroll]);
 
   const runAction = async (action, payload = {}, successMessage) => {
@@ -197,10 +209,7 @@ export default function PayrollDetailsPage() {
     setSuccess("");
 
     try {
-      const response = await api.patch(`/payroll/${id}/${action}`, payload);
-
-      const updated = response.data?.data?.payroll;
-      if (updated) setPayroll(updated);
+      await api.patch(`/payroll/${id}/${action}`, payload);
 
       setSuccess(successMessage);
       await loadPayroll();
@@ -212,10 +221,10 @@ export default function PayrollDetailsPage() {
   };
 
   const handleRecalculate = async () => {
-    if (!canManage || payroll?.status !== "draft") return;
+    if (!canRecalculate || payroll?.status !== "draft") return;
 
     const confirmed = window.confirm(
-      "Recalculate this draft payroll using the latest salary, approved leave and attendance records?\n\nThe payroll ID will remain unchanged. Verified, approved and paid records cannot be recalculated.",
+      "Recalculate this draft payroll using the latest salary, approved leave and attendance records?\n\nVerified, approved and paid records cannot be recalculated.",
     );
 
     if (!confirmed) return;
@@ -262,7 +271,7 @@ export default function PayrollDetailsPage() {
   };
 
   const handleMarkPaid = async () => {
-    if (!canManage || payroll?.status !== "approved") return;
+    if (!canPay || payroll?.status !== "approved") return;
 
     const paymentMethod = window.prompt(
       "Enter payment method:\n\nbank_transfer, upi, cash, cheque, other",
@@ -312,6 +321,28 @@ export default function PayrollDetailsPage() {
     );
   }
 
+  if (!canView && !hasAllPermissions) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
+        <div className="max-w-md rounded-2xl border bg-white p-8 text-center shadow-sm">
+          <ShieldCheck className="mx-auto text-amber-500" size={42} />
+          <h2 className="mt-4 text-xl font-bold text-slate-900">
+            Access Restricted
+          </h2>
+          <p className="mt-2 text-sm text-slate-500">
+            You do not have permission to view payroll records.
+          </p>
+          <button
+            onClick={() => navigate("/dashboard")}
+            className="mt-5 rounded-lg bg-green-800 px-5 py-2.5 text-sm font-semibold text-white"
+          >
+            Back to Dashboard
+          </button>
+        </div>
+      </main>
+    );
+  }
+
   if (!payroll) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-slate-50 p-6">
@@ -358,6 +389,13 @@ export default function PayrollDetailsPage() {
   ];
 
   const history = [...(payroll.history || [])].reverse();
+
+  const payrollMonth = payroll.payrollMonth
+    ? new Date(
+        Number(payroll.payrollYear),
+        Number(payroll.payrollMonth) - 1,
+      ).toLocaleString("en-IN", { month: "long" })
+    : "—";
 
   return (
     <main className="min-h-screen bg-[#f3f7f4]">
@@ -445,12 +483,7 @@ export default function PayrollDetailsPage() {
             />
             <DetailItem
               label="Payroll Month"
-              value={`${new Date(
-                Number(payroll.payrollYear),
-                Number(payroll.payrollMonth) - 1,
-              ).toLocaleString("en-IN", {
-                month: "long",
-              })} ${payroll.payrollYear}`}
+              value={`${payrollMonth} ${payroll.payrollYear || ""}`}
             />
             <DetailItem
               label="Salary Mode"
@@ -466,7 +499,7 @@ export default function PayrollDetailsPage() {
         {/* Workflow actions */}
         <Section title="Payroll Workflow" icon={ShieldCheck}>
           <div className="flex flex-wrap gap-3">
-            {payroll.status === "draft" && canManage && (
+            {payroll.status === "draft" && canRecalculate && (
               <ActionButton
                 onClick={handleRecalculate}
                 disabled={processing}
@@ -495,7 +528,7 @@ export default function PayrollDetailsPage() {
               </ActionButton>
             )}
 
-            {payroll.status === "approved" && canManage && (
+            {payroll.status === "approved" && canPay && (
               <ActionButton onClick={handleMarkPaid} disabled={processing}>
                 <CreditCard size={16} />
                 Mark as Paid
@@ -516,7 +549,7 @@ export default function PayrollDetailsPage() {
               </div>
             )}
 
-            {!canManage && !canVerify && !canApprove && (
+            {!canRecalculate && !canVerify && !canApprove && !canPay && (
               <p className="text-sm text-slate-500">
                 You have read-only access to this payroll record.
               </p>
@@ -525,7 +558,7 @@ export default function PayrollDetailsPage() {
 
           <p className="mt-4 text-xs text-slate-500">
             Payroll follows the sequence Draft → Verified → Approved → Paid.
-            Paid and approved records cannot be recalculated.
+            Only draft records can be recalculated.
           </p>
         </Section>
 
@@ -605,11 +638,9 @@ export default function PayrollDetailsPage() {
                 value={salary.grossMonthly}
               />
             ) : (
-              <>
-                {earningsRows.map(([label, value]) => (
-                  <MoneyRow key={label} label={label} value={value} />
-                ))}
-              </>
+              earningsRows.map(([label, value]) => (
+                <MoneyRow key={label} label={label} value={value} />
+              ))
             )}
 
             <MoneyRow
@@ -685,6 +716,7 @@ export default function PayrollDetailsPage() {
                 label="Verification Remarks"
                 value={payroll.verificationRemarks || "—"}
               />
+
               <div className="border-t border-slate-100 pt-4">
                 <DetailItem
                   label="Approved By"
@@ -732,7 +764,7 @@ export default function PayrollDetailsPage() {
           </Section>
         </div>
 
-        {/* History */}
+        {/* Activity history */}
         <div className="mt-6">
           <Section title="Payroll Activity History" icon={History}>
             {history.length === 0 ? (
@@ -749,10 +781,12 @@ export default function PayrollDetailsPage() {
                     <div className="mt-1 rounded-full bg-green-100 p-2 text-green-800">
                       <Clock size={15} />
                     </div>
+
                     <div className="min-w-0 flex-1 border-b border-slate-100 pb-4 last:border-0">
                       <p className="text-sm font-semibold capitalize text-slate-900">
                         {(item.action || "Activity").replaceAll("_", " ")}
                       </p>
+
                       <p className="mt-1 text-xs text-slate-500">
                         {item.actorType === "system"
                           ? "System"
@@ -760,11 +794,13 @@ export default function PayrollDetailsPage() {
                         {" · "}
                         {formatDateTime(item.actionAt)}
                       </p>
+
                       {item.previousStatus && item.newStatus && (
                         <p className="mt-1 text-xs text-slate-600">
                           {item.previousStatus} → {item.newStatus}
                         </p>
                       )}
+
                       {item.remarks && (
                         <p className="mt-2 text-sm text-slate-600">
                           {item.remarks}

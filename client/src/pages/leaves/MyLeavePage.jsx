@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import {
   CalendarDays,
@@ -128,11 +128,6 @@ function MyLeavePage() {
 
   const today = getCompanyDate();
 
-  const selectedLeaveType = useMemo(
-    () => LEAVE_TYPES.find((item) => item.value === form.leaveType),
-    [form.leaveType],
-  );
-
   const loadBalances = useCallback(async () => {
     setBalanceError("");
 
@@ -198,7 +193,9 @@ function MyLeavePage() {
   }, [loadBalances, loadLeaveHistory]);
 
   useEffect(() => {
-    loadPageData();
+    Promise.resolve().then(() => {
+      void loadPageData();
+    });
   }, [loadPageData]);
 
   const handleRefresh = async () => {

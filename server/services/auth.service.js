@@ -1,8 +1,7 @@
 import User from "../models/user.model.js";
 import Role from "../models/role.model.js";
 import RefreshSession from "../models/refreshSession.model.js";
-const authError = (message, statusCode = 400) =>
-  Object.assign(new Error(message), { statusCode });
+
 import {
   hashPassword,
   comparePassword,
@@ -14,6 +13,9 @@ import {
   generateRefreshToken,
   verifyRefreshToken,
 } from "../utils/token.util.js";
+
+const authError = (message, statusCode = 400) =>
+  Object.assign(new Error(message), { statusCode });
 
 const REFRESH_TOKEN_DAYS = 7;
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -60,6 +62,10 @@ export const sanitizeUser = (user) => ({
 });
 
 export const loginUser = async (email, password, metadata = {}) => {
+  if (typeof email !== "string" || typeof password !== "string") {
+    throw authError("Invalid email or password.", 401);
+  }
+
   const normalizedEmail = email.toLowerCase().trim();
 
   const user = await User.findOne({
@@ -69,14 +75,13 @@ export const loginUser = async (email, password, metadata = {}) => {
     .select("+password")
     .populate("role");
 
-  // Keep the response generic so the endpoint does not reveal
-  // whether an email address is registered.
+  // Keep the response generic to avoid revealing registered email addresses.
   if (!user) {
-    throw new Error("Invalid email or password.");
+    throw authError("Invalid email or password.", 401);
   }
 
   if (user.lockUntil && user.lockUntil > new Date()) {
-    throw new Error("Account temporarily locked. Try again later.");
+    throw authError("Account temporarily locked. Try again later.", 423);
   }
 
   if (user.lockUntil && user.lockUntil <= new Date()) {
@@ -85,7 +90,10 @@ export const loginUser = async (email, password, metadata = {}) => {
   }
 
   if (user.accountStatus !== "active" || !user.role?.isActive) {
-    throw new Error("Your account is not active. Contact an administrator.");
+    throw authError(
+      "Your account is not active. Contact an administrator.",
+      403,
+    );
   }
 
   const passwordMatches = await comparePassword(password, user.password);
@@ -99,7 +107,7 @@ export const loginUser = async (email, password, metadata = {}) => {
 
     await user.save();
 
-    throw new Error("Invalid email or password.");
+    throw authError("Invalid email or password.", 401);
   }
 
   user.failedLoginAttempts = 0;
@@ -123,23 +131,23 @@ export const registerUser = async (data, actor, metadata = {}) => {
   const roleId = data.roleId;
 
   if (!fullName || !email || !password || !roleId) {
-    throw new Error("Full name, email, password and role are required.");
+    throw authError("Full name, email, password and role are required.", 400);
   }
 
   if (fullName.length < 2 || fullName.length > 100) {
-    throw new Error("Full name must contain 2 to 100 characters.");
+    throw authError("Full name must contain 2 to 100 characters.", 400);
   }
 
   const passwordCheck = validatePassword(password);
 
   if (!passwordCheck.valid) {
-    throw new Error(passwordCheck.message);
+    throw authError(passwordCheck.message, 400);
   }
 
   const existingUser = await User.findOne({ email });
 
   if (existingUser) {
-    throw new Error("An account with this email already exists.");
+    throw authError("An account with this email already exists.", 409);
   }
 
   const requestedRole = await Role.findOne({
@@ -148,7 +156,7 @@ export const registerUser = async (data, actor, metadata = {}) => {
   });
 
   if (!requestedRole) {
-    throw new Error("Selected role does not exist or is inactive.");
+    throw authError("Selected role does not exist or is inactive.", 400);
   }
 
   const actorIsSuperAdmin = actor.role?.permissions?.includes("*");
@@ -156,7 +164,7 @@ export const registerUser = async (data, actor, metadata = {}) => {
   // A user cannot create an account at their own level or above,
   // unless they are a Super Admin.
   if (!actorIsSuperAdmin && requestedRole.level >= actor.role.level) {
-    throw new Error("You cannot assign this role.");
+    throw authError("You cannot assign this role.", 403);
   }
 
   const hashedPassword = await hashPassword(password);
@@ -180,7 +188,7 @@ export const registerUser = async (data, actor, metadata = {}) => {
 
 export const refreshUserSession = async (refreshToken, metadata = {}) => {
   if (!refreshToken) {
-    throw new Error("Refresh token is required.");
+    throw authError("Refresh token is required.", 401);
   }
 
   let payload;
@@ -188,7 +196,7 @@ export const refreshUserSession = async (refreshToken, metadata = {}) => {
   try {
     payload = verifyRefreshToken(refreshToken);
   } catch {
-    throw new Error("Invalid or expired refresh token.");
+    throw authError("Invalid or expired refresh token.", 401);
   }
 
   const session = await RefreshSession.findOne({
@@ -199,7 +207,7 @@ export const refreshUserSession = async (refreshToken, metadata = {}) => {
   });
 
   if (!session) {
-    throw new Error("Session expired or revoked. Please log in again.");
+    throw authError("Session expired or revoked. Please log in again.", 401);
   }
 
   const user = await User.findOne({
@@ -211,7 +219,25 @@ export const refreshUserSession = async (refreshToken, metadata = {}) => {
   if (!user || !user.role?.isActive) {
     session.revokedAt = new Date();
     await session.save();
-    throw new Error("User account is not active.");
+
+    throw authError("User account is not active.", 401);
+  }
+
+  if ((payload.ver ?? 0) !== (user.tokenVersion ?? 0)) {
+    await RefreshSession.updateMany(
+      {
+        user: user._id,
+        revokedAt: null,
+      },
+      {
+        $set: { revokedAt: new Date() },
+      },
+    );
+
+    throw authError(
+      "Your session has been invalidated. Please log in again.",
+      401,
+    );
   }
 
   // Revoke the old session before issuing a replacement.
@@ -221,7 +247,7 @@ export const refreshUserSession = async (refreshToken, metadata = {}) => {
   );
 
   if (revokeResult.modifiedCount !== 1) {
-    throw new Error("Session has already been used. Please log in again.");
+    throw authError("Session has already been used. Please log in again.", 401);
   }
 
   const tokens = await createSession(user, metadata);
@@ -251,8 +277,8 @@ export const logoutUser = async (refreshToken) => {
       },
     );
   } catch {
-    // Logout should still succeed if the token is already expired
-    // or invalid. The controller will clear the browser cookies.
+    // Logout should still succeed if the token is expired or invalid.
+    // The controller clears the browser cookies.
   }
 };
 
@@ -263,8 +289,74 @@ export const getAuthenticatedUser = async (userId) => {
   }).populate("role");
 
   if (!user || user.accountStatus !== "active" || !user.role?.isActive) {
-    throw new Error("User account is not active.");
+    throw authError("User account is not active.", 401);
   }
 
   return sanitizeUser(user);
+};
+
+export const changeUserPassword = async (
+  userId,
+  currentPassword,
+  newPassword,
+) => {
+  if (
+    typeof currentPassword !== "string" ||
+    typeof newPassword !== "string" ||
+    !currentPassword ||
+    !newPassword
+  ) {
+    throw authError("Current password and new password are required.", 400);
+  }
+
+  if (currentPassword === newPassword) {
+    throw authError(
+      "New password must be different from your current password.",
+      400,
+    );
+  }
+
+  const user = await User.findOne({
+    _id: userId,
+    isDeleted: false,
+    accountStatus: "active",
+  }).select("+password");
+
+  if (!user) {
+    throw authError("User account is unavailable.", 401);
+  }
+
+  const passwordMatches = await comparePassword(currentPassword, user.password);
+
+  if (!passwordMatches) {
+    throw authError("Current password is incorrect.", 400);
+  }
+
+  const validation = validatePassword(newPassword);
+
+  if (!validation.valid) {
+    throw authError(validation.message, 400);
+  }
+
+  user.password = await hashPassword(newPassword);
+  user.passwordChangedAt = new Date();
+  user.tokenVersion = (user.tokenVersion || 0) + 1;
+
+  await user.save();
+
+  // Revoke all refresh sessions belonging to this user.
+  await RefreshSession.updateMany(
+    {
+      user: user._id,
+      revokedAt: null,
+    },
+    {
+      $set: { revokedAt: new Date() },
+    },
+  );
+
+  return {
+    success: true,
+    message: "Password changed successfully. Please log in again.",
+  };
 };

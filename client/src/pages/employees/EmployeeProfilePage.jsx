@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useSelector } from "react-redux";
 import {
@@ -19,7 +19,6 @@ import {
   Eye,
   EyeOff,
   CheckCircle2,
-  KeyRound,
   Users,
   GitBranch,
 } from "lucide-react";
@@ -171,51 +170,54 @@ function EmployeeProfilePage() {
   };
 
   // Fetch employee profile
-  const loadEmployee = async (showLoader = true) => {
-    try {
-      if (showLoader) setLoading(true);
+  const loadEmployee = useCallback(
+    async (showLoader = true) => {
+      try {
+        if (showLoader) setLoading(true);
 
-      setError("");
+        setError("");
 
-      const response = await api.get(`/employees/${id}`);
+        const response = await api.get(`/employees/${id}`);
 
-      const record = response.data.data?.employee || response.data.data;
+        const record = response.data.data?.employee || response.data.data;
 
-      if (!record?._id) {
-        throw new Error("Employee record not found.");
+        if (!record?._id) {
+          throw new Error("Employee record not found.");
+        }
+
+        setEmployee(record);
+        await loadReportingData(record);
+
+        setForm({
+          firstName: record.firstName || "",
+          lastName: record.lastName || "",
+          workEmail: record.workEmail || "",
+          personalEmail: record.personalEmail || "",
+          phone: record.phone || "",
+          alternatePhone: record.alternatePhone || "",
+          gender: record.gender || "",
+          designation: record.designation || "",
+          employmentType: record.employmentType || "full_time",
+          joiningDate: formatDateForInput(record.joiningDate),
+          confirmationDate: formatDateForInput(record.confirmationDate),
+          employmentStatus: record.employmentStatus || "active",
+          notes: record.notes || "",
+        });
+      } catch (err) {
+        setError(
+          err.response?.data?.message ||
+            err.message ||
+            "Unable to load employee profile.",
+        );
+      } finally {
+        if (showLoader) setLoading(false);
       }
-
-      setEmployee(record);
-      await loadReportingData(record);
-
-      setForm({
-        firstName: record.firstName || "",
-        lastName: record.lastName || "",
-        workEmail: record.workEmail || "",
-        personalEmail: record.personalEmail || "",
-        phone: record.phone || "",
-        alternatePhone: record.alternatePhone || "",
-        gender: record.gender || "",
-        designation: record.designation || "",
-        employmentType: record.employmentType || "full_time",
-        joiningDate: formatDateForInput(record.joiningDate),
-        confirmationDate: formatDateForInput(record.confirmationDate),
-        employmentStatus: record.employmentStatus || "active",
-        notes: record.notes || "",
-      });
-    } catch (err) {
-      setError(
-        err.response?.data?.message ||
-          err.message ||
-          "Unable to load employee profile.",
-      );
-    } finally {
-      if (showLoader) setLoading(false);
-    }
-  };
+    },
+    [id],
+  );
 
   // Fetch roles available for account assignment
-  const loadRoles = async () => {
+  const loadRoles = useCallback(async () => {
     if (!canCreateAccount) return;
 
     try {
@@ -234,15 +236,19 @@ function EmployeeProfilePage() {
     } finally {
       setRolesLoading(false);
     }
-  };
-
-  useEffect(() => {
-    loadEmployee();
-  }, [id]);
-
-  useEffect(() => {
-    loadRoles();
   }, [canCreateAccount]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      void loadEmployee();
+    });
+  }, [loadEmployee]);
+
+  useEffect(() => {
+    Promise.resolve().then(() => {
+      void loadRoles();
+    });
+  }, [loadRoles]);
 
   const handleChange = (event) => {
     const { name, value } = event.target;

@@ -816,7 +816,9 @@ export default function OrganizationChart() {
   }, []);
 
   useEffect(() => {
-    loadOrganization();
+    Promise.resolve().then(() => {
+      void loadOrganization();
+    });
   }, [loadOrganization]);
 
   const unassignedEmployees = useMemo(() => {

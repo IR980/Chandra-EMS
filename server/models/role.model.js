@@ -84,7 +84,7 @@ roleSchema.pre("validate", function () {
 });
 
 // Indexes
-roleSchema.index({ slug: 1 }, { unique: true });
+// roleSchema.index({ slug: 1 }, { unique: true });
 roleSchema.index({ isActive: 1, level: 1 });
 
 const Role = mongoose.model("Role", roleSchema);

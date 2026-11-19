@@ -4,8 +4,9 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
 import { refreshSession } from "./features/auth/authSlice";
 
-// authentication 
+// authentication
 import LoginPage from "./pages/LoginPage";
+import ChangePasswordPage from "./pages/ChangePasswordPage";
 // dashboard
 import DashboardPage from "./pages/DashboardPage";
 
@@ -35,6 +36,13 @@ import LeaveBalanceManagementPage from "./pages/leaves/LeaveBalanceManagementPag
 // payroll management
 import PayrollDashboardPage from "./pages/payroll/PayrollDashboardPage";
 import PayrollDetailsPage from "./pages/payroll/PayrollDetailsPage";
+
+// reports management
+import ReportsDashboardPage from "./pages/reports/ReportsDashboardPage";
+
+// layout
+import AppLayout from "./components/layout/AppLayout";
+
 function App() {
   const dispatch = useDispatch();
 
@@ -69,32 +77,47 @@ function App() {
       />
 
       <Route element={<ProtectedRoute />}>
-      {/* employee management */}
-        <Route path="/employees" element={<EmployeeDirectoryPage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/employees/new" element={<AddEmployeePage />} />
-        <Route path="/employees/:id" element={<EmployeeProfilePage />} />
+        <Route element={<AppLayout />}>
+          {/* Dashboard */}
+          <Route path="/dashboard" element={<DashboardPage />} />
 
-        {/* attendance management */}
-        <Route path="/attendance/me" element={<MyAttendancePage />} />
-        <Route path="/attendance" element={<AttendanceManagementPage />} />
+          {/* Account security */}
+          <Route path="/change-password" element={<ChangePasswordPage />} />
 
-        {/* organization management */}
-        <Route path="/organization" element={<OrganizationDashboard />} />
-        <Route path="/organization/domains" element={<DomainManagement />} />
-        <Route path="/organization/departments" element={<DepartmentManagement />} />
-        <Route path="/organization/chart" element={<OrganizationChart />} />
+          {/* Employee management */}
+          <Route path="/employees" element={<EmployeeDirectoryPage />} />
+          <Route path="/employees/new" element={<AddEmployeePage />} />
+          <Route path="/employees/:id" element={<EmployeeProfilePage />} />
 
-        {/* leave management */}
-        <Route path="/leaves/me" element={<MyLeavePage />} />
-        <Route path="/leaves/management" element={<LeaveManagementPage />} />
-        <Route path="/leaves/policies" element={<LeavePolicyPage />} />
-        <Route path="/leaves/balances" element={<LeaveBalanceManagementPage />} />
+          {/* Attendance management */}
+          <Route path="/attendance/me" element={<MyAttendancePage />} />
+          <Route path="/attendance" element={<AttendanceManagementPage />} />
 
-        {/* payroll management */}
-        <Route path="/payroll" element={<PayrollDashboardPage />} />
-        <Route path="/payroll/:id" element={<PayrollDetailsPage />} />
+          {/* Organization management */}
+          <Route path="/organization" element={<OrganizationDashboard />} />
+          <Route path="/organization/domains" element={<DomainManagement />} />
+          <Route
+            path="/organization/departments"
+            element={<DepartmentManagement />}
+          />
+          <Route path="/organization/chart" element={<OrganizationChart />} />
 
+          {/* Leave management */}
+          <Route path="/leaves/me" element={<MyLeavePage />} />
+          <Route path="/leaves/management" element={<LeaveManagementPage />} />
+          <Route path="/leaves/policies" element={<LeavePolicyPage />} />
+          <Route
+            path="/leaves/balances"
+            element={<LeaveBalanceManagementPage />}
+          />
+
+          {/* Payroll management */}
+          <Route path="/payroll" element={<PayrollDashboardPage />} />
+          <Route path="/payroll/:id" element={<PayrollDetailsPage />} />
+
+          {/* Reports */}
+          <Route path="/reports" element={<ReportsDashboardPage />} />
+        </Route>
       </Route>
 
       <Route
