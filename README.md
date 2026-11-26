@@ -1,490 +1,672 @@
+🏢 Chandra Enterprises – Employee Management System (EMS)
 
-# Chandra Enterprises – Employee Management System
+A full-stack Employee Management System designed to centralize and automate employee operations across Chandra Enterprises' business domains and departments.
 
-A centralized, department-wise Employee Management System for Chandra Enterprises, built using the MERN stack.
+The platform provides employee management, organizational hierarchy, attendance tracking, leave management, payroll processing, document verification, notifications, and role-based access control through a centralized dashboard.
 
-The system is designed to manage company domains, departments, employees, reporting structures, attendance, leave, payroll, and organizational operations through a centralized platform.
+📌 Project Overview
 
-## Project Information
+Project Name: Chandra Enterprises – Employee Management System
+Application Type: Full-Stack Web Application
+Architecture: MERN Stack
+Frontend: React.js + Vite + Tailwind CSS
+Backend: Node.js + Express.js
+Database: MongoDB Atlas
+Authentication: JWT-Based Authentication
+Status: Core Development Completed – Testing & Deployment Pending
 
-| Item | Technology / Details |
-|---|---|
-| Project | Chandra Enterprises EMS |
-| Frontend | React.js + Vite |
-| Backend | Node.js + Express.js |
-| Database | MongoDB Atlas |
-| Styling | Tailwind CSS v4 |
-| Authentication | JWT + bcryptjs |
-| State Management | Redux Toolkit |
-| API Client | Axios |
-| Company | Chandra Enterprises |
-| Repository | chandra-ems |
+✨ Key Features
 
-## Project Structure
+1. Authentication & Authorization
 
-```text
+Secure user login and authentication.
+
+JWT-based authentication.
+
+Password hashing using bcryptjs.
+
+Role-Based Access Control (RBAC).
+
+Permission-based route protection.
+
+Protected API endpoints.
+
+2. Organization Management
+
+Dynamic organization management.
+
+Domain management.
+
+Department management.
+
+Organizational hierarchy.
+
+Manager and reporting relationships.
+
+Support for adding new domains and departments dynamically.
+
+3. Employee Management
+
+Employee registration and onboarding.
+
+Employee directory.
+
+Employee profile management.
+
+Employee information updates.
+
+Employee status management.
+
+Department and domain assignment.
+
+Manager assignment and reporting hierarchy.
+
+4. Attendance Management
+
+Employee check-in and check-out.
+
+Attendance tracking.
+
+Manual attendance entry.
+
+Attendance record updates.
+
+Attendance approval.
+
+Attendance history and management.
+
+5. Leave Management
+
+Employee leave applications.
+
+Leave approval and rejection.
+
+Leave policies.
+
+Employee leave balances.
+
+Leave management dashboard.
+
+Leave history.
+
+6. Payroll Management
+
+Salary structure management.
+
+Monthly payroll generation.
+
+Payroll verification.
+
+Payroll approval.
+
+Salary payment processing.
+
+Employee salary history.
+
+Payroll records and management.
+
+Automated monthly payroll scheduler.
+
+Protection against duplicate payroll generation.
+
+7. Document Management
+
+Employee document submission.
+
+Document storage and management.
+
+Document verification.
+
+Document approval and rejection.
+
+Document verification dashboard.
+
+Employee document status tracking.
+
+8. Notification System
+
+Real-time notifications.
+
+Notification bell with unread count.
+
+Centralized notification center.
+
+Read and unread notification management.
+
+Module-specific notification navigation.
+
+Super Admin notifications for:
+
+New employee registration.
+
+Attendance activities.
+
+Leave applications and activities.
+
+Payroll activities.
+
+Document submission and verification.
+
+Socket.IO notification infrastructure.
+
+9. Dashboard & Reports
+
+Centralized management dashboard.
+
+Employee and organizational information.
+
+Attendance and leave information.
+
+Payroll-related information.
+
+Reports and management insights.
+
+🛠️ Technology Stack
+
+Frontend
+
+Technology
+
+Purpose
+
+React.js
+
+User Interface
+
+Vite
+
+Development and Build Tool
+
+JavaScript
+
+Application Logic
+
+Tailwind CSS
+
+Styling
+
+React Router DOM
+
+Routing
+
+Redux Toolkit / Context API
+
+State Management
+
+Axios
+
+API Integration
+
+Recharts
+
+Data Visualization
+
+Lucide React
+
+Icons
+
+Backend
+
+Technology
+
+Purpose
+
+Node.js
+
+Runtime Environment
+
+Express.js
+
+Backend Framework
+
+MongoDB Atlas
+
+Database
+
+Mongoose
+
+ODM
+
+JWT
+
+Authentication
+
+bcryptjs
+
+Password Hashing
+
+Socket.IO
+
+Real-Time Notifications
+
+node-cron
+
+Scheduled Payroll Tasks
+
+Additional Tools
+
+Git and GitHub
+
+Cloudinary
+
+Postman
+
+VS Code
+
+MongoDB Atlas
+
+Vercel
+
+Render
+
+🏗️ System Architecture
+
+                 CHANDRA ENTERPRISES EMS
+                           |
+              +------------+------------+
+              |                         |
+         FRONTEND                   BACKEND
+        React + Vite             Node.js + Express
+              |                         |
+       Tailwind CSS                REST APIs
+              |                         |
+       React Router              JWT Authentication
+              |                         |
+       Axios Integration          RBAC Middleware
+              |                         |
+              +------------+------------+
+                           |
+                     DATABASE
+                           |
+                     MongoDB Atlas
+                           |
+              +------------+------------+
+              |                         |
+        Employee Data              Payroll Data
+        Attendance Data            Leave Data
+        Document Data               Notifications
+        Organization Data           User & Roles
+
+🏢 Organizational Hierarchy
+
+The system supports the following organizational reporting structure:
+
+Managing Director
+       |
+    Director
+       |
+ Department Manager
+       |
+Department Coordinator
+       |
+   Supervisor
+       |
+    Employees
+
+🗂️ Departments
+
+The system is designed to support dynamic department management, including:
+
+Legal
+
+Marketing
+
+Sales & Purchase
+
+Operations
+
+Accounts & Finance
+
+Transport
+
+Human Resources
+
+Security
+
+Engineering
+
+Software Engineering
+
+Civil Engineering
+
+Electrical & Maintenance
+
+House Keeping
+
+Trainee & Research Development
+
+📁 Project Structure
+
 chandra-ems/
+│
 ├── client/
 │   ├── public/
 │   ├── src/
 │   │   ├── assets/
 │   │   ├── components/
 │   │   ├── features/
+│   │   │   └── notifications/
 │   │   ├── pages/
 │   │   ├── services/
-│   │   │   └── api.js
 │   │   ├── store/
+│   │   ├── hooks/
+│   │   ├── layouts/
+│   │   ├── routes/
 │   │   ├── App.jsx
-│   │   ├── index.css
 │   │   └── main.jsx
-│   ├── .env
-│   └── package.json
+│   ├── package.json
+│   └── vite.config.js
 │
 ├── server/
 │   ├── config/
-│   │   ├── db.js
-│   │   └── permissions.js
 │   ├── controllers/
 │   ├── middleware/
 │   ├── models/
 │   ├── routes/
-│   ├── scripts/
-│   │   ├── seedRoles.js
-│   │   ├── inspectOrganization.js
-│   │   └── seedOrganization.js
 │   ├── services/
 │   ├── utils/
-│   ├── .env
-│   ├── server.js
-│   └── package.json
+│   ├── package.json
+│   └── server.js
 │
-├── .gitignore
 └── README.md
-```
 
-*The structure above summarizes the main project directories; additional files and modules may exist.*
+Note: This is a high-level representation of the project structure. Individual folders may contain additional files.
 
-## Development Setup
+⚙️ Installation & Setup
 
-### Backend
+Prerequisites
 
-```powershell
-cd D:\chandra-ems\server
+Install the following before starting:
+
+Node.js (LTS recommended)
+
+npm
+
+MongoDB Atlas account
+
+Git
+
+VS Code (recommended)
+
+1. Clone the Repository
+
+git clone https://github.com/IR980/chandra-ems.git
+
+cd chandra-ems
+
+2. Setup Backend
+
+cd server
 npm install
-npm run dev
-```
 
-Backend URL:
+Create a .env file inside the server directory.
 
-http://localhost:5000
-
-Health API:
-
-http://localhost:5000/api/health
-
-### Frontend
-
-```powershell
-cd D:\chandra-ems\client
-npm install
-npm run dev
-```
-
-Frontend URL:
-
-http://localhost:5173
-
-Production build:
-
-```powershell
-npm run build
-```
-
-## Environment Variables
-
-### Server: `server/.env`
-
-```env
 PORT=5000
 NODE_ENV=development
+
+MONGO_URI=your_mongodb_atlas_connection_string
+
+JWT_SECRET=your_secure_jwt_secret
+
 CLIENT_URL=http://localhost:5173
-MONGO_URI=your_mongodb_connection_string
-JWT_SECRET=your_secret
-ACCESS_TOKEN_SECRET=your_access_secret
-REFRESH_TOKEN_SECRET=your_refresh_secret
-```
 
-### Client: `client/.env`
+Add other environment variables required by your configured integrations, such as Cloudinary and email services.
 
-```env
+Start the backend:
+
+npm run dev
+
+3. Setup Frontend
+
+Open another terminal:
+
+cd client
+npm install
+
+Create a .env file inside the client directory:
+
 VITE_API_URL=http://localhost:5000/api
-```
-
-Never commit real environment credentials.
-
----
-
-# Company Organization Structure
-
-## Business Domain
-
-The company currently uses one centralized business domain.
-
-| Domain | Code | Status |
-|---|---|---|
-| Banana Trading & Ripening | BTR | Active |
-
-## Main Departments
-
-| No. | Department | Code |
-|---:|---|---|
-| 1 | Legal | LEG |
-| 2 | Marketing | MKT |
-| 3 | Sales & Purchase | SALES |
-| 4 | Operations | OPS |
-| 5 | Accounts & Finance | ACC |
-| 6 | Transport | TRN |
-| 7 | Human Resources | HR |
-| 8 | Security | SEC |
-| 9 | Engineering | ENG |
-| 10 | House Keeping | HK |
-| 11 | Trainee & Research Development | TRD |
-
-## Engineering Sub-Departments
-
-| No. | Sub-Department | Code | Parent |
-|---:|---|---|---|
-| 1 | Software Engineering | SWENG | Engineering |
-| 2 | Civil Engineering | CIVIL | Engineering |
-| 3 | Electrical & Maintenance | ELM | Engineering |
-
-**Organization seed verification:**
-
-- [x] Existing BTR domain preserved.
-- [x] Existing Sales & Purchase department preserved.
-- [x] All 11 main departments verified.
-- [x] All 3 Engineering sub-departments created.
-- [x] Parent-child relationships verified.
-- [x] Total of 14 departments verified.
-- [x] All 14 departments active.
-
-## Organizational Hierarchy
-
-Expected reporting structure:
-
-```text
-Managing Director
-    |
-    └── Director
-          |
-          ├── Department Manager
-          |      |
-          |      └── Coordinator
-          |             |
-          |             └── Supervisor
-          |                    |
-          |                    └── Employees
-          |
-          └── Other Department Managers
-```
-
-The actual reporting relationship will be determined by employee assignments and authorized roles.
-
----
-
-# Development Progress
-
-## Phase 1 – Project Setup and Verification
-
-<badge color="success">Completed</badge>
-
-- [x] Existing project inspection
-- [x] React + Vite configuration
-- [x] Express backend configuration
-- [x] MongoDB Atlas connection
-- [x] Tailwind CSS v4 setup
-- [x] Axios API client setup
-- [x] Backend dependencies verified
-- [x] Frontend dependencies verified
-- [x] Frontend production build verified
-- [x] Frontend lint check completed
-- [x] Backend health endpoint verified
-- [x] Frontend runtime verified
-- [x] Project architecture finalized
-- [x] README documentation updated
-
-## Phase 2 – Authentication and Authorization
-
-<badge color="warning">In Progress</badge>
-
-### Database and Permissions
-
-- [x] User MongoDB model
-- [x] Role MongoDB model
-- [x] Central permissions configuration
-- [x] Default role seed script
-
-### Password and JWT Utilities
-
-- [x] bcryptjs password hashing utility
-- [x] Password comparison utility
-- [x] Password validation
-- [x] JWT access token utility
-- [x] JWT refresh token utility
-- [x] Separate access and refresh secrets
-- [x] HS256 signing algorithm
-- [x] Token issuer and audience configuration
-- [x] Unique refresh token identifier
-
-### Security Configuration
-
-- [x] Password hashing uses 12 salt rounds
-- [x] Minimum password length: 8 characters
-- [x] Maximum password length: 128 characters
-- [x] Uppercase and lowercase validation
-- [x] Number and special character validation
-- [x] Access token expiry: 15 minutes
-- [x] Refresh token expiry: 7 days
-
-### Remaining Authentication Work
-
-- [ ] Verify password utility tests
-- [ ] Verify JWT utility tests
-- [ ] Seed default roles in MongoDB
-- [ ] Login API
-- [ ] Logout API
-- [ ] Refresh token API
-- [ ] Refresh token rotation
-- [ ] Token revocation and session management
-- [ ] Forgot password
-- [ ] Reset password
-- [ ] Authentication frontend
-- [ ] Protected routes
-- [ ] Role-based access control testing
-- [ ] Super Admin setup
-- [ ] Complete authentication testing
-
-### Authentication Test Commands
-
-Run from the `server` directory:
-
-```powershell
-node scripts/testPassword.js
-node scripts/testToken.js
-```
-
-### Environment Variables
-
-```env
-ACCESS_TOKEN_SECRET=your_access_secret
-REFRESH_TOKEN_SECRET=your_refresh_secret
-```
-
-Security note: Refresh tokens should be stored as hashed session records. Never expose JWT secrets in frontend code.
-
-## Phase 3 – Organization Management
-
-<badge color="warning">Implementation and verification in progress</badge>
-
-### Domain Management
-
-- [x] Domain Mongoose model
-- [x] Create domain API
-- [x] List domains with search and pagination
-- [x] Get domain by ID
-- [x] Update domain
-- [x] Deactivate domain
-- [x] Domain permissions
-
-### Department Management
-
-- [x] Department Mongoose model
-- [x] Create department API
-- [x] List departments with search and pagination
-- [x] Filter departments by domain
-- [x] Get department by ID
-- [x] Update department
-- [x] Deactivate department
-- [x] Parent department relationship
-- [x] Parent-child hierarchy validation
-- [x] Department manager assignment validation
-- [x] Department permissions
-
-### Organization Database Setup
-
-- [x] Existing organization data inspected
-- [x] Existing BTR domain identified
-- [x] Existing Sales & Purchase department preserved
-- [x] Organization seed script created
-- [x] 11 main departments seeded or verified
-- [x] 3 Engineering sub-departments seeded
-- [x] Engineering parent-child relationships verified
-- [x] Total 14 departments verified in MongoDB
-
-### Remaining Organization Work
-
-- [ ] Verify domain APIs
-- [ ] Verify department APIs
-- [ ] Verify domain and department authorization
-- [ ] Domain head assignment validation
-- [ ] Domain Management UI improvements
-- [ ] Department Management UI verification
-- [ ] Employee-based manager assignment verification
-- [ ] Organization dashboard count accuracy
-- [ ] Organization chart verification
-- [ ] Department color and ordering consistency
-- [ ] Pagination and large employee-list handling
-- [ ] Designation management
-- [ ] Complete organization management testing
-
-### Organization Seed Command
-
-Run from the `server` directory:
-
-```powershell
-node scripts/seedOrganization.js
-```
-
-The seed script is designed to preserve existing organization records and verify the expected department structure.
-
-## Phase 4 – Employee Management
-
-<badge color="warning">Implementation present; testing pending</badge>
-
-### Database
-
-- [x] Employee model
-- [x] Automatic employee ID generation
-- [x] Counter model
-- [x] Domain relationship
-- [x] Department relationship
-- [x] Reporting manager relationship
-- [x] Optional login account relationship
-
-### Employee APIs
-
-- [x] Create employee
-- [x] List employees
-- [x] Search employees
-- [x] Filter employees
-- [x] Get employee by ID
-- [x] Update employee
-- [x] Deactivate employee
-
-### Testing
-
-- [ ] Employee creation
-- [ ] Employee listing
-- [ ] Employee search
-- [ ] Employee profile
-- [ ] Employee update
-- [ ] Employee deactivation
-- [ ] Employee ID generation
-- [ ] Department assignment
-- [ ] Reporting manager assignment
-- [ ] Employee authorization
-- [ ] Employee data validation
-
-## Phase 5 – Attendance Management
-
-- [ ] Check-in and check-out
-- [ ] Shift management
-- [ ] Attendance calculation
-- [ ] Attendance correction
-- [ ] Late arrival tracking
-- [ ] Overtime calculation
-- [ ] Attendance reports
-
-## Phase 6 – Leave Management
-
-- [ ] Leave types and policies
-- [ ] Leave applications
-- [ ] Leave balances
-- [ ] Approval workflow
-- [ ] Leave history
-- [ ] Leave reports
-
-## Phase 7 – Salary and Payroll
-
-- [ ] Salary structure
-- [ ] Allowances and deductions
-- [ ] Payroll calculation
-- [ ] Payroll approval
-- [ ] Salary slips
-- [ ] Payment tracking
-- [ ] Payroll reports
-
-## Phase 8 – Dashboards and Organization Chart
-
-- [ ] Super Admin dashboard
-- [ ] Managing Director dashboard
-- [ ] HR dashboard
-- [ ] Department Manager dashboard
-- [ ] Accounts dashboard
-- [ ] Employee dashboard
-- [ ] Organization chart
-- [ ] Department-wise employee overview
-
-## Phase 9 – Reports and Analytics
-
-- [ ] Employee reports
-- [ ] Attendance reports
-- [ ] Payroll reports
-- [ ] Department-wise reports
-- [ ] Analytics charts
-- [ ] PDF exports
-- [ ] Excel exports
-
-## Phase 10 – Testing, Security and Deployment
-
-- [ ] API testing
-- [ ] Frontend testing
-- [ ] Permission testing
-- [ ] Input validation testing
-- [ ] Security testing
-- [ ] Performance testing
-- [ ] Production environment configuration
-- [ ] Frontend deployment
-- [ ] Backend deployment
-- [ ] Database production verification
-
----
-
-# Important Development Rules
-
-1. Maintain the existing project architecture.
-2. Use reusable React components.
-3. Use REST APIs for frontend-backend communication.
-4. Validate all incoming API data.
-5. Protect sensitive employee and payroll information.
-6. Enforce permissions on the backend.
-7. Maintain audit logs for sensitive operations.
-8. Never store plain-text passwords.
-9. Never commit `.env` credentials.
-10. Preserve historical employee, attendance and payroll records.
-11. Avoid duplicate employees, domains and departments.
-12. Use MongoDB references consistently.
-13. Verify database changes before modifying existing records.
-14. Test each feature before moving to the next development phase.
-
----
-
-# Current Development Status
-
-| Area | Status |
-|---|---|
-| Project setup | Completed |
-| Backend and frontend verification | Completed |
-| Authentication foundation | Implemented; testing pending |
-| Domain and department APIs | Implemented |
-| Organization seed | Completed and verified |
-| Employee model and APIs | Implemented; testing pending |
-| Attendance | Pending |
-| Leave management | Pending |
-| Payroll | Pending |
-| Dashboards and reports | Pending |
-| Production deployment | Pending |
-
-**Company:** Chandra Enterprises  
-**Project:** Employee Management System  
-**Repository:** `chandra-ems`
+
+Start the frontend:
+
+npm run dev
+
+4. Access the Application
+
+Frontend: http://localhost:5173
+Backend:  http://localhost:5000
+
+Use the authentication credentials configured for your application.
+
+🔐 Security
+
+The application incorporates security mechanisms including:
+
+JWT-based authentication.
+
+Password hashing with bcryptjs.
+
+Protected routes and APIs.
+
+Role-Based Access Control.
+
+Permission-based authorization.
+
+Backend input validation.
+
+Environment-based configuration.
+
+Important: Never commit .env files, database credentials, JWT secrets, or other sensitive configuration to GitHub.
+
+💰 Payroll Automation
+
+The payroll scheduler is configured to run monthly using the Asia/Kolkata timezone.
+
+Configuration
+
+Value
+
+Scheduler
+
+node-cron
+
+Timezone
+
+Asia/Kolkata
+
+Scheduled Time
+
+2:00 AM
+
+Scheduled Day
+
+1st of every month
+
+Automatic Payroll
+
+Currently Disabled
+
+Planned Activation
+
+December 1, 2026
+
+Intended First Run
+
+November 2026 Payroll
+
+Automatic payroll must remain disabled until the planned activation date.
+
+🚀 Production Build
+
+Frontend
+
+cd client
+npm run build
+
+The production build is generated inside:
+
+client/dist/
+
+Backend
+
+cd server
+node --check server.js
+
+Use the configured production start script when deploying the backend.
+
+🌐 Deployment
+
+The application can be deployed using:
+
+Component
+
+Suggested Platform
+
+Frontend
+
+Vercel
+
+Backend
+
+Render
+
+Database
+
+MongoDB Atlas
+
+Media Storage
+
+Cloudinary
+
+Configure production environment variables and verify frontend-to-backend API connectivity before deployment.
+
+🧪 Testing & Validation
+
+The following areas should be tested before production release:
+
+Authentication and authorization.
+
+Employee registration and profile management.
+
+Organization and department management.
+
+Attendance and leave workflows.
+
+Payroll calculation and approval.
+
+Document submission and verification.
+
+Notification delivery and navigation.
+
+Role-based permissions.
+
+API validation and error handling.
+
+Production database connectivity.
+
+📈 Development Status
+
+Development Area
+
+Status
+
+Core Frontend
+
+Completed
+
+Backend APIs
+
+Implemented
+
+Authentication & RBAC
+
+Implemented
+
+Organization Management
+
+Implemented
+
+Employee Management
+
+Implemented
+
+Attendance Management
+
+Implemented
+
+Leave Management
+
+Implemented
+
+Payroll Management
+
+Implemented
+
+Document Management
+
+Implemented
+
+Notification System
+
+Implemented
+
+Frontend Production Build
+
+Successful
+
+End-to-End Testing
+
+Pending
+
+Performance Optimization
+
+Pending
+
+Production Deployment Verification
+
+Pending
+
+Final Documentation
+
+In Progress
+
+🔮 Future Enhancements
+
+Advanced analytics and reporting.
+
+Excel and PDF exports.
+
+Automated salary slip generation.
+
+Email and WhatsApp notifications.
+
+Employee self-service portal improvements.
+
+Advanced audit logs.
+
+Performance evaluation and appraisal.
+
+Enhanced dashboard visualizations.
+
+Frontend code splitting and performance optimization.
+
+👨‍💻 Project Information
+
+Project Name: Chandra Enterprises – Employee Management System (EMS)
+Organization: Chandra Enterprises
+Developed By: Irshad Alam
+GitHub: @IR980
+GitHub Repository: Chandra EMS
+Project Type: Full-Stack Enterprise Management Application
+Technology Stack: MERN Stack
+Purpose: Centralized Employee and Workforce Management
+
+Developed with dedication by Irshad Alam for Chandra Enterprises.
+
+📄 License
+
+This project is developed for Chandra Enterprises.
+
+All rights reserved. Unauthorized copying, distribution, or commercial use requires permission from the project owner.
+
+Built to simplify employee management and streamline business operations at Chandra Enterprises.
