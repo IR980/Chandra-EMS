@@ -43,6 +43,9 @@ import ReportsDashboardPage from "./pages/reports/ReportsDashboardPage";
 // layout
 import AppLayout from "./components/layout/AppLayout";
 
+// documentation
+import DocumentVerificationPage from "./pages/documents/DocumentVerificationPage";
+import NotificationCenterPage from "./pages/notifications/NotificationCenterPage";
 function App() {
   const dispatch = useDispatch();
 
@@ -117,6 +120,16 @@ function App() {
 
           {/* Reports */}
           <Route path="/reports" element={<ReportsDashboardPage />} />
+
+          {/* Document verification */}
+          <Route
+            path="/documents/verification"
+            element={<DocumentVerificationPage />}
+          />
+
+          {/* Notification Center */}
+          {/* Notification Center */}
+          <Route path="/notifications" element={<NotificationCenterPage />} />
         </Route>
       </Route>
 

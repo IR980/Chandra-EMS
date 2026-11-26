@@ -30,14 +30,30 @@ export const fetchCurrentUser = createAsyncThunk(
 );
 
 // Refresh session
+// Refresh session - prevent duplicate refresh requests
+let refreshPromise = null;
+
 export const refreshSession = createAsyncThunk(
   "auth/refresh",
   async (_, { rejectWithValue }) => {
-    try {
-      await api.post("/auth/refresh");
+    if (!refreshPromise) {
+      refreshPromise = (async () => {
+        try {
+          await api.post("/auth/refresh");
 
-      const response = await api.get("/auth/me");
-      return response.data.data.user;
+          const response = await api.get("/auth/me");
+
+          return response.data.data.user;
+        } catch (error) {
+          throw error;
+        } finally {
+          refreshPromise = null;
+        }
+      })();
+    }
+
+    try {
+      return await refreshPromise;
     } catch (error) {
       return rejectWithValue(
         error.response?.data?.message || "Session expired.",
@@ -74,18 +90,18 @@ const authSlice = createSlice({
     clearAuthError: (state) => {
       state.error = null;
     },
-  },
-  clearAuthSession: (state) => {
-    state.user = null;
-    state.isAuthenticated = false;
-    state.loading = false;
-    state.error = null;
-    state.initialized = true;
+
+    clearAuthSession: (state) => {
+      state.user = null;
+      state.isAuthenticated = false;
+      state.loading = false;
+      state.error = null;
+      state.initialized = true;
+    },
   },
 
   extraReducers: (builder) => {
     builder
-      // Login
       .addCase(loginUser.pending, (state) => {
         state.loading = true;
         state.error = null;
@@ -104,7 +120,6 @@ const authSlice = createSlice({
         state.initialized = true;
       })
 
-      // Current user
       .addCase(fetchCurrentUser.fulfilled, (state, action) => {
         state.user = action.payload;
         state.isAuthenticated = true;
@@ -116,7 +131,6 @@ const authSlice = createSlice({
         state.initialized = true;
       })
 
-      // Refresh session
       .addCase(refreshSession.fulfilled, (state, action) => {
         state.user = action.payload;
         state.isAuthenticated = true;
@@ -128,11 +142,11 @@ const authSlice = createSlice({
         state.initialized = true;
       })
 
-      // Logout
       .addCase(logoutUser.fulfilled, (state) => {
         state.user = null;
         state.isAuthenticated = false;
         state.error = null;
+        state.initialized = true;
       })
       .addCase(logoutUser.rejected, (state, action) => {
         state.error = action.payload;

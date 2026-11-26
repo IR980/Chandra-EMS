@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { NavLink, Outlet, useLocation, useNavigate } from "react-router-dom";
 import { useDispatch, useSelector } from "react-redux";
+
 import {
   Building2,
   LayoutDashboard,
@@ -9,9 +10,11 @@ import {
   CalendarCheck,
   CalendarDays,
   ClipboardList,
+  Bell,
   Wallet,
   Banknote,
   FileBarChart,
+  FileCheck,
   KeyRound,
   Settings,
   LogOut,
@@ -23,6 +26,7 @@ import {
 } from "lucide-react";
 
 import { logoutUser } from "../../features/auth/authSlice";
+import NotificationBell from "../../features/notifications/NotificationBell";
 
 function SidebarLink({ item, collapsed, onNavigate }) {
   const Icon = item.icon;
@@ -53,6 +57,7 @@ function SidebarLink({ item, collapsed, onNavigate }) {
           {!collapsed && (
             <>
               <span className="min-w-0 flex-1 truncate">{item.label}</span>
+
               {isActive && (
                 <ChevronRight size={15} className="shrink-0 text-emerald-300" />
               )}
@@ -82,25 +87,32 @@ function AppLayout() {
   const hasPermission = (permission) =>
     permissions.includes("*") || permissions.includes(permission);
 
+  // Attendance permissions
   const canViewAttendance = hasPermission("attendance.view");
   const canMarkAttendance = hasPermission("attendance.mark");
 
   const canManageAttendance =
     canViewAttendance && ["global", "assigned"].includes(user?.role?.scope);
 
+  // Leave permissions
   const canViewLeaves = hasPermission("leave.view");
   const canApplyLeave = hasPermission("leave.apply");
   const canApproveLeaves = hasPermission("leave.approve");
   const canManageLeavePolicy = hasPermission("leave.manage");
 
+  // Payroll permissions
   const canAccessPayroll =
     hasPermission("payroll.view") ||
     hasPermission("payroll.manage") ||
     hasPermission("payroll.verify") ||
     hasPermission("payroll.approve");
 
+  // Other permissions
   const canViewReports = hasPermission("reports.view");
+  const canViewNotifications = hasPermission("notifications.view");
+  const canVerifyDocuments = hasPermission("documents.verify");
 
+  // Sidebar navigation
   const navigationGroups = [
     {
       title: "OVERVIEW",
@@ -158,6 +170,12 @@ function AppLayout() {
           icon: Settings,
           visible: canManageLeavePolicy,
         },
+        {
+          label: "Document Verification",
+          path: "/documents/verification",
+          icon: FileCheck,
+          visible: canVerifyDocuments,
+        },
       ],
     },
     {
@@ -194,6 +212,17 @@ function AppLayout() {
       ],
     },
     {
+      title: "COMMUNICATION",
+      items: [
+        {
+          label: "Notifications",
+          path: "/notifications",
+          icon: Bell,
+          visible: canViewNotifications,
+        },
+      ],
+    },
+    {
       title: "ACCOUNT",
       items: [
         {
@@ -206,6 +235,7 @@ function AppLayout() {
     },
   ];
 
+  // Page titles
   const pageTitles = {
     "/dashboard": "Dashboard",
     "/employees": "Employee Management",
@@ -219,7 +249,9 @@ function AppLayout() {
     "/leaves/policies": "Leave Policy Management",
     "/payroll": "Payroll Management",
     "/reports": "Reports & Analytics",
+    "/notifications": "Notifications",
     "/change-password": "Change Password",
+    "/documents/verification": "Document Verification",
   };
 
   const currentTitle =
@@ -229,8 +261,8 @@ function AppLayout() {
       : location.pathname.startsWith("/payroll/")
         ? "Payroll Details"
         : "Employee Management System");
-        
 
+  // Logout
   const handleLogout = async () => {
     if (loggingOut) return;
 
@@ -245,6 +277,7 @@ function AppLayout() {
     }
   };
 
+  // Filter visible navigation items
   const visibleGroups = navigationGroups
     .map((group) => ({
       ...group,
@@ -397,6 +430,8 @@ function AppLayout() {
           </div>
 
           <div className="flex shrink-0 items-center gap-3">
+            {canViewNotifications && <NotificationBell />}
+
             <div className="hidden text-right sm:block">
               <p className="max-w-45 truncate text-sm font-semibold text-slate-800">
                 {user?.fullName || "EMS User"}

@@ -6,7 +6,11 @@ import LeavePolicy from "../models/leavePolicy.model.js";
 import Employee from "../models/employee.model.js";
 import Domain from "../models/domain.model.js";
 import Department from "../models/department.model.js";
-
+import User from "../models/user.model.js";
+import {
+  createBulkNotifications,
+  createNotification,
+} from "../services/notification.service.js";
 const LEAVE_TYPES = ["casual", "sick", "earned", "unpaid"];
 const LEAVE_STATUSES = ["pending", "approved", "rejected", "cancelled"];
 const MAX_PAGE_SIZE = 100;
@@ -83,6 +87,79 @@ const getEmployeeForUser = async (userId) =>
     user: userId,
     employmentStatus: { $in: ["active", "on_leave"] },
   }).select("_id domain department user employmentStatus");
+
+const notifyLeaveManagers = async ({
+  employee,
+  actorId,
+  leaveId,
+  title,
+  message,
+}) => {
+  try {
+    const [department, domain] = await Promise.all([
+      Department.findById(employee.department).select("manager"),
+      Domain.findById(employee.domain).select("head"),
+    ]);
+
+    const managerIds = [department?.manager, domain?.head].filter(Boolean);
+
+    // Find active manager accounts.
+    const managers = managerIds.length
+      ? await Employee.find({
+          _id: { $in: managerIds },
+          employmentStatus: "active",
+          user: { $exists: true, $ne: null },
+        }).select("user")
+      : [];
+
+    const managerUserIds = managers
+      .map((manager) => manager.user?.toString())
+      .filter(Boolean);
+
+    // Find active Super Admin accounts independently of managers.
+    const superAdmins = await User.find({
+      accountStatus: "active",
+      isDeleted: false,
+    })
+      .populate({
+        path: "role",
+        match: { slug: "super-admin" },
+        select: "slug",
+      })
+      .select("_id role");
+
+    const superAdminUserIds = superAdmins
+      .filter((user) => user.role)
+      .map((user) => user._id.toString());
+
+    // Combine manager and Super Admin recipients.
+    const actorUserId = actorId.toString();
+
+    const recipientIds = [
+      ...new Set([...managerUserIds, ...superAdminUserIds]),
+    ].filter((id) => id !== actorUserId);
+
+    if (!recipientIds.length) return;
+
+    await createBulkNotifications(recipientIds, {
+      actor: actorId,
+      category: "leave",
+      priority: "medium",
+      title,
+      message,
+      actionUrl: "/leaves",
+      relatedEntity: {
+        type: "Leave",
+        id: leaveId,
+      },
+    });
+  } catch (notificationError) {
+    console.error(
+      "[Leave Notification] Manager notification failed:",
+      notificationError.message,
+    );
+  }
+};
 
 const getLeaveScope = async (user) => {
   const scope = user?.role?.scope || "self";
@@ -504,6 +581,14 @@ export const applyLeave = async (req, res) => {
       updatedBy: req.user._id,
     });
 
+    await notifyLeaveManagers({
+      employee,
+      actorId: req.user._id,
+      leaveId: leave._id,
+      title: "New Leave Application",
+      message: `${employee.fullName} has submitted a ${leaveType} leave request from ${startDateInput} to ${endDateInput}.`,
+    });
+
     const populatedLeave = await populateLeave(Leave.findById(leave._id));
 
     return sendSuccess(
@@ -751,6 +836,41 @@ export const approveLeave = async (req, res) => {
       }
     });
 
+    try {
+      const employee = await Employee.findById(approvedLeave.employee).select(
+        "user",
+      );
+
+      if (employee?.user) {
+        const activeUser = await User.findOne({
+          _id: employee.user,
+          accountStatus: "active",
+          isDeleted: false,
+        }).select("_id");
+
+        if (activeUser) {
+          await createNotification({
+            recipient: activeUser._id,
+            actor: req.user._id,
+            category: "leave",
+            priority: "medium",
+            title: "Leave Application Approved",
+            message: `Your ${approvedLeave.leaveType} leave application has been approved.`,
+            actionUrl: "/leaves",
+            relatedEntity: {
+              type: "Leave",
+              id: approvedLeave._id,
+            },
+          });
+        }
+      }
+    } catch (notificationError) {
+      console.error(
+        "[Leave Notification] Approval notification failed:",
+        notificationError.message,
+      );
+    }
+
     const populatedLeave = await populateLeave(
       Leave.findById(approvedLeave._id),
     );
@@ -854,6 +974,41 @@ export const rejectLeave = async (req, res) => {
       );
     }
 
+    try {
+      const employee = await Employee.findById(updatedLeave.employee).select(
+        "user",
+      );
+
+      if (employee?.user) {
+        const activeUser = await User.findOne({
+          _id: employee.user,
+          accountStatus: "active",
+          isDeleted: false,
+        }).select("_id");
+
+        if (activeUser) {
+          await createNotification({
+            recipient: activeUser._id,
+            actor: req.user._id,
+            category: "leave",
+            priority: "high",
+            title: "Leave Application Rejected",
+            message: `Your ${updatedLeave.leaveType} leave application was rejected. Reason: ${updatedLeave.rejectionReason}`,
+            actionUrl: "/leaves",
+            relatedEntity: {
+              type: "Leave",
+              id: updatedLeave._id,
+            },
+          });
+        }
+      }
+    } catch (notificationError) {
+      console.error(
+        "[Leave Notification] Rejection notification failed:",
+        notificationError.message,
+      );
+    }
+
     const populatedLeave = await populateLeave(
       Leave.findById(updatedLeave._id),
     );
@@ -877,7 +1032,7 @@ export const cancelLeave = async (req, res) => {
 
   try {
     let cancelledLeave = null;
-
+    let isOwner = false;
     await session.withTransaction(async () => {
       const leave = await Leave.findById(req.params.id).session(session);
 
@@ -896,7 +1051,7 @@ export const cancelLeave = async (req, res) => {
       }
 
       const ownEmployee = await getEmployeeForUser(req.user._id);
-      const isOwner =
+      isOwner =
         ownEmployee && String(leave.employee) === String(ownEmployee._id);
       const canManage = hasPermission(req.user, "leave.manage");
 
@@ -979,6 +1134,57 @@ export const cancelLeave = async (req, res) => {
         throw error;
       }
     });
+
+    try {
+      if (isOwner) {
+        const employee = await Employee.findById(
+          cancelledLeave.employee,
+        ).select("_id domain department");
+
+        if (employee) {
+          await notifyLeaveManagers({
+            employee,
+            actorId: req.user._id,
+            leaveId: cancelledLeave._id,
+            title: "Leave Application Cancelled",
+            message: `An employee has cancelled their ${cancelledLeave.leaveType} leave application.`,
+          });
+        }
+      } else {
+        const employee = await Employee.findById(
+          cancelledLeave.employee,
+        ).select("user");
+
+        if (employee?.user) {
+          const activeUser = await User.findOne({
+            _id: employee.user,
+            accountStatus: "active",
+            isDeleted: false,
+          }).select("_id");
+
+          if (activeUser) {
+            await createNotification({
+              recipient: activeUser._id,
+              actor: req.user._id,
+              category: "leave",
+              priority: "medium",
+              title: "Leave Application Cancelled",
+              message: `Your ${cancelledLeave.leaveType} leave application has been cancelled by a manager.`,
+              actionUrl: "/leaves",
+              relatedEntity: {
+                type: "Leave",
+                id: cancelledLeave._id,
+              },
+            });
+          }
+        }
+      }
+    } catch (notificationError) {
+      console.error(
+        "[Leave Notification] Cancellation notification failed:",
+        notificationError.message,
+      );
+    }
 
     const populatedLeave = await populateLeave(
       Leave.findById(cancelledLeave._id),

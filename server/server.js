@@ -1,4 +1,6 @@
 import express from "express";
+import { createServer } from "http";
+import { initializeSocket } from "./services/socket.service.js";
 import cors from "cors";
 import dotenv from "dotenv";
 import helmet from "helmet";
@@ -20,11 +22,14 @@ import payrollRoutes from "./routes/payroll.routes.js";
 import { startPayrollScheduler } from "./services/payrollScheduler.service.js";
 import reportsRoutes from "./routes/reports.routes.js";
 import { validateRequestOrigin } from "./middleware/csrf.middleware.js";
+import documentRoutes from "./routes/document.routes.js";
+import notificationRoutes from "./routes/notification.routes.js";
 dns.setServers(["8.8.8.8", "8.8.4.4"]);
 dotenv.config();
 
 const app = express();
-
+// Create HTTP server
+const httpServer = createServer(app);
 // Security middleware
 app.use(helmet());
 
@@ -112,6 +117,9 @@ app.use("/api/departments", departmentRoutes);
 // Employee API
 app.use("/api/employees", employeeRoutes);
 
+// Employee Documents API
+app.use("/api/documents", documentRoutes);
+
 // Role API
 app.use("/api/roles", roleRoutes);
 
@@ -127,6 +135,9 @@ app.use("/api/payroll", payrollRoutes);
 
 // Reports API
 app.use("/api/reports", reportsRoutes);
+
+// Notifications API
+app.use("/api/notifications", notificationRoutes);
 // Central error handler — must be registered after all routes.
 app.use(errorHandler);
 
@@ -137,7 +148,8 @@ const startServer = async () => {
   try {
     await connectDB();
     await startPayrollScheduler();
-    app.listen(PORT, () => {
+    initializeSocket(httpServer, allowedOrigins); // Initialize Socket.IO with the HTTP server
+    httpServer.listen(PORT, () => {
       console.log(`EMS Server running on port ${PORT}`);
     });
   } catch (error) {

@@ -3,7 +3,12 @@ import Attendance from "../models/attendance.model.js";
 import Employee from "../models/employee.model.js";
 import Domain from "../models/domain.model.js";
 import Department from "../models/department.model.js";
-
+import User from "../models/user.model.js";
+import {
+  createNotification,
+  createBulkNotifications,
+} from "../services/notification.service.js";
+import Role from "../models/role.model.js";
 const TIME_ZONE = "Asia/Kolkata";
 const MAX_REMARKS_LENGTH = 500;
 
@@ -227,6 +232,99 @@ const getWorkedMinutes = (checkInAt, checkOutAt) => {
   );
 };
 
+const notifyAttendanceEmployee = async ({
+  employeeId,
+  actorId,
+  title,
+  message,
+  priority = "medium",
+  attendanceId,
+}) => {
+  try {
+    const employee = await Employee.findOne({
+      _id: employeeId,
+      employmentStatus: { $in: ["active", "on_leave"] },
+    }).select("user");
+
+    if (!employee?.user || employee.user.toString() === actorId.toString()) {
+      return;
+    }
+
+    const activeUser = await User.findOne({
+      _id: employee.user,
+      accountStatus: "active",
+      isDeleted: false,
+    }).select("_id");
+
+    if (!activeUser) return;
+
+    await createNotification({
+      recipient: activeUser._id,
+      actor: actorId,
+      category: "attendance",
+      priority,
+      title,
+      message,
+      actionUrl: "/attendance",
+      relatedEntity: {
+        type: "Attendance",
+        id: attendanceId,
+      },
+    });
+  } catch (notificationError) {
+    console.error(
+      "[Attendance Notification] Delivery failed:",
+      notificationError.message,
+    );
+  }
+};
+
+const notifyAttendanceSuperAdmins = async ({
+  actorId,
+  title,
+  message,
+  priority = "medium",
+  attendanceId,
+}) => {
+  try {
+    const superAdminRole = await Role.findOne({
+      slug: "super-admin",
+      isActive: true,
+    }).select("_id");
+
+    if (!superAdminRole) return;
+
+    const superAdmins = await User.find({
+      role: superAdminRole._id,
+      accountStatus: "active",
+      isDeleted: false,
+    }).select("_id");
+
+    if (!superAdmins.length) return;
+
+    await createBulkNotifications(
+      superAdmins.map((admin) => admin._id),
+      {
+        actor: actorId,
+        category: "attendance",
+        priority,
+        title,
+        message,
+        actionUrl: "/attendance",
+        relatedEntity: {
+          type: "Attendance",
+          id: attendanceId,
+        },
+      },
+    );
+  } catch (notificationError) {
+    console.error(
+      "[Attendance Super Admin Notification] Delivery failed:",
+      notificationError.message,
+    );
+  }
+};
+
 const getAttendanceSnapshot = (attendance) => ({
   status: attendance.status,
   checkInAt: attendance.checkInAt,
@@ -268,6 +366,13 @@ export const checkIn = async (req, res, next) => {
       checkInAt: now,
       source: "self",
       markedBy: req.user._id,
+    });
+
+    await notifyAttendanceSuperAdmins({
+      actorId: req.user._id,
+      title: "Employee Checked In",
+      message: `An employee checked in on ${today}.`,
+      attendanceId: attendance._id,
     });
 
     return res.status(201).json({
@@ -329,6 +434,12 @@ export const checkOut = async (req, res, next) => {
     );
 
     await attendance.save();
+    await notifyAttendanceSuperAdmins({
+      actorId: req.user._id,
+      title: "Employee Checked Out",
+      message: `An employee checked out on ${today}.`,
+      attendanceId: attendance._id,
+    });
 
     return res.json({
       success: true,
@@ -568,6 +679,21 @@ export const createManualAttendance = async (req, res, next) => {
       approvedAt: new Date(),
     });
 
+    await notifyAttendanceEmployee({
+      employeeId: employee._id,
+      actorId: req.user._id,
+      title: "Attendance Recorded",
+      message: `Your attendance for ${attendanceDate} has been recorded as ${status.replace("_", " ")}.`,
+      attendanceId: attendance._id,
+    });
+
+    await notifyAttendanceSuperAdmins({
+      actorId: req.user._id,
+      title: "Manual Attendance Recorded",
+      message: `Attendance for an employee on ${attendanceDate} was recorded as ${status.replace("_", " ")}.`,
+      attendanceId: attendance._id,
+    });
+
     return res.status(201).json({
       success: true,
       message: "Manual attendance recorded successfully.",
@@ -721,6 +847,22 @@ export const updateAttendance = async (req, res, next) => {
     attendance.markedBy = req.user._id;
 
     await attendance.save();
+
+    await notifyAttendanceEmployee({
+      employeeId: attendance.employee,
+      actorId: req.user._id,
+      title: "Attendance Updated",
+      message: `Your attendance record for ${attendance.attendanceDate} has been corrected.`,
+      priority: "high",
+      attendanceId: attendance._id,
+    });
+    await notifyAttendanceSuperAdmins({
+      actorId: req.user._id,
+      title: "Attendance Record Updated",
+      message: `An employee's attendance record for ${attendance.attendanceDate} was updated.`,
+      priority: "high",
+      attendanceId: attendance._id,
+    });
     return res.json({
       success: true,
       message: "Attendance corrected successfully.",
@@ -805,6 +947,20 @@ export const approveAttendance = async (req, res, next) => {
 
     await attendance.save();
 
+    await notifyAttendanceEmployee({
+      employeeId: attendance.employee,
+      actorId: req.user._id,
+      title: "Attendance Approved",
+      message: `Your attendance for ${attendance.attendanceDate} has been approved.`,
+      attendanceId: attendance._id,
+    });
+
+    await notifyAttendanceSuperAdmins({
+      actorId: req.user._id,
+      title: "Attendance Approved",
+      message: `Attendance for an employee on ${attendance.attendanceDate} has been approved.`,
+      attendanceId: attendance._id,
+    });
     return res.json({
       success: true,
       message: "Attendance approved successfully.",

@@ -57,6 +57,8 @@ export const PERMISSIONS = {
 
   // Documents and notifications
   DOCUMENTS_VIEW: "documents.view",
+  DOCUMENTS_UPLOAD: "documents.upload",
+  DOCUMENTS_VERIFY: "documents.verify",
   DOCUMENTS_MANAGE: "documents.manage",
   NOTIFICATIONS_VIEW: "notifications.view",
   NOTIFICATIONS_MANAGE: "notifications.manage",

@@ -6,6 +6,8 @@ import Department from "../models/department.model.js";
 import User from "../models/user.model.js";
 import Role from "../models/role.model.js";
 import { hashPassword } from "../utils/password.util.js";
+import getEmployeeAccessScope from "../utils/employeeAccessScope.js";
+import { createBulkNotifications } from "../services/notification.service.js";
 const allowedFields = [
   "firstName",
   "lastName",
@@ -29,104 +31,6 @@ const allowedFields = [
   "emergencyContact",
   "notes",
 ];
-
-// ----------------------------------------------------
-// EMPLOYEE ACCESS SCOPE
-// ----------------------------------------------------
-
-const getEmployeeAccessScope = async (user) => {
-  const scope = user?.role?.scope || "self";
-
-  // Global roles can access all employee records.
-  if (scope === "global") {
-    return {};
-  }
-
-  // Find the employee linked to the logged-in user.
-  const ownEmployee = await Employee.findOne({
-    user: user._id,
-  }).select("_id");
-
-  // Users without an employee profile cannot access employee records.
-  if (!ownEmployee) {
-    return {
-      _id: new mongoose.Types.ObjectId(),
-    };
-  }
-
-  // Self-scoped users can access only their own record.
-  if (scope === "self") {
-    return {
-      _id: ownEmployee._id,
-    };
-  }
-
-  // Find officially managed domains and departments.
-  const [headedDomains, managedDepartments] = await Promise.all([
-    Domain.find({
-      head: ownEmployee._id,
-      status: "active",
-    }).select("_id"),
-
-    Department.find({
-      manager: ownEmployee._id,
-      status: "active",
-    }).select("_id"),
-  ]);
-
-  // Collect all direct and indirect reporting employees.
-  const descendantIds = [];
-  const visitedIds = new Set([ownEmployee._id.toString()]);
-  let managerIds = [ownEmployee._id];
-
-  while (managerIds.length > 0) {
-    const reports = await Employee.find({
-      reportingManager: { $in: managerIds },
-    }).select("_id");
-
-    const nextManagerIds = [];
-
-    for (const report of reports) {
-      const reportId = report._id.toString();
-
-      if (!visitedIds.has(reportId)) {
-        visitedIds.add(reportId);
-        descendantIds.push(report._id);
-        nextManagerIds.push(report._id);
-      }
-    }
-
-    managerIds = nextManagerIds;
-  }
-
-  const accessConditions = [{ _id: ownEmployee._id }];
-
-  if (descendantIds.length > 0) {
-    accessConditions.push({
-      _id: { $in: descendantIds },
-    });
-  }
-
-  if (headedDomains.length > 0) {
-    accessConditions.push({
-      domain: {
-        $in: headedDomains.map((item) => item._id),
-      },
-    });
-  }
-
-  if (managedDepartments.length > 0) {
-    accessConditions.push({
-      department: {
-        $in: managedDepartments.map((item) => item._id),
-      },
-    });
-  }
-
-  return {
-    $or: accessConditions,
-  };
-};
 
 const validateOrganization = async (domainId, departmentId) => {
   if (
@@ -299,6 +203,83 @@ export const createEmployee = async (req, res, next) => {
       .populate("domain", "name code")
       .populate("department", "name code")
       .populate("reportingManager", "employeeCode fullName designation");
+
+    // Notification failures must never interrupt employee registration.
+    // Send best-effort notifications to Super Admin and organizational managers.
+    try {
+      const [departmentRecord, domainRecord, superAdminRole] =
+        await Promise.all([
+          Department.findById(department).select("manager"),
+          Domain.findById(domain).select("head"),
+          Role.findOne({
+            slug: "super-admin",
+            isActive: true,
+          }).select("_id"),
+        ]);
+
+      // Collect organizational manager employee IDs.
+      const managerEmployeeIds = [
+        reportingManager,
+        departmentRecord?.manager,
+        domainRecord?.head,
+      ].filter(Boolean);
+
+      const uniqueManagerIds = [
+        ...new Set(managerEmployeeIds.map((id) => id.toString())),
+      ];
+
+      // Find manager user accounts.
+      const managerEmployees = uniqueManagerIds.length
+        ? await Employee.find({
+            _id: { $in: uniqueManagerIds },
+            employmentStatus: "active",
+            user: { $exists: true, $ne: null },
+          }).select("user")
+        : [];
+
+      const managerUserIds = managerEmployees
+        .map((manager) => manager.user?.toString())
+        .filter(Boolean);
+
+      // Find active Super Admin accounts independently.
+      const superAdminUsers = superAdminRole
+        ? await User.find({
+            role: superAdminRole._id,
+            accountStatus: "active",
+            isDeleted: false,
+          }).select("_id")
+        : [];
+
+      const superAdminUserIds = superAdminUsers.map((user) =>
+        user._id.toString(),
+      );
+
+      // Combine recipients and prevent duplicate/self notifications.
+      const actorId = req.user._id.toString();
+
+      const recipientIds = [
+        ...new Set([...managerUserIds, ...superAdminUserIds]),]
+
+      if (recipientIds.length > 0) {
+        await createBulkNotifications(recipientIds, {
+          actor: req.user._id,
+          category: "employee",
+          priority: "medium",
+          title: "New Employee Registered",
+          message: `${populatedEmployee.fullName} has been added to ${populatedEmployee.department?.name || "the department"} in ${populatedEmployee.domain?.name || "the domain"}.`,
+          actionUrl: "/employees",
+          relatedEntity: {
+            type: "Employee",
+            id: employee._id,
+          },
+        });
+      }
+    } catch (notificationError) {
+      console.error(
+        "[Employee Notification] Delivery failed:",
+        notificationError.message,
+      );
+    }
 
     return res.status(201).json({
       success: true,

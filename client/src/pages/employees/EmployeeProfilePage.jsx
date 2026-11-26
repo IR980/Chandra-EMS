@@ -24,6 +24,7 @@ import {
 } from "lucide-react";
 
 import api from "../../services/api";
+import EmployeeDocumentsSection from "./EmployeeDocumentsSection";
 
 const emptyForm = {
   firstName: "",
@@ -1194,6 +1195,8 @@ function EmployeeProfilePage() {
                 </form>
               )}
             </div>
+            {/* Employee documents */}
+            <EmployeeDocumentsSection employeeId={employee._id} />
 
             {/* Additional notes */}
             <div className="rounded-2xl border border-gray-100 bg-white p-6 shadow-sm">
