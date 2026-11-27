@@ -2,6 +2,10 @@
 {
   "rewrites": [
     {
+      "source": "/api/:path*",
+      "destination": "https://chandra-ems-backend.onrender.com/api/:path*"
+    },
+    {
       "source": "/(.*)",
       "destination": "/index.html"
     }
